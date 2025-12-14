@@ -20,6 +20,12 @@ const selectors = {
   weatherUpdated: () => document.getElementById("weather-updated"),
   weatherChart: () => document.getElementById("weather-chart"),
   pressureChart: () => document.getElementById("pressure-chart"),
+  clockBanner: () => document.getElementById("clock-banner"),
+  clockTime: () => document.getElementById("clock-time"),
+  clockMs: () => document.getElementById("clock-ms"),
+  clockDate: () => document.getElementById("clock-date"),
+  clockZone: () => document.getElementById("clock-zone"),
+  clockFontSelect: () => document.getElementById("clock-font-select"),
   sensorSht31Status: () => document.getElementById("sensor-sht31-status"),
   sensorBmp580Status: () => document.getElementById("sensor-bmp580-status"),
   outdoorConditionIcon: () => document.getElementById("outdoor-condition-icon"),
@@ -34,6 +40,16 @@ const selectors = {
   searchInput: () => document.getElementById("outdoor-search"),
   searchResults: () => document.getElementById("outdoor-search-results"),
   searchStatus: () => document.getElementById("outdoor-search-status"),
+  clockEnable: () => document.getElementById("clock-enable"),
+  clockTimezoneMode: () => document.getElementById("clock-timezone-mode"),
+  clockTimezoneManual: () => document.getElementById("clock-timezone-manual"),
+  clockFormatSelect: () => document.getElementById("clock-format-select"),
+  clockShowSeconds: () => document.getElementById("clock-show-seconds"),
+  clockShowMillis: () => document.getElementById("clock-show-millis"),
+  clockShowDate: () => document.getElementById("clock-show-date"),
+  clockShowTimezone: () => document.getElementById("clock-show-timezone"),
+  clockNtpPools: () => document.getElementById("clock-ntp-pools"),
+  clockSyncInterval: () => document.getElementById("clock-sync-interval"),
   forecastGrid: () => document.getElementById("forecast-grid"),
   forecastUpdated: () => document.getElementById("forecast-updated"),
   forecastValue: (metric, horizon) => document.getElementById(`forecast-${metric}-${horizon}`),
@@ -64,6 +80,11 @@ const weatherState = {
 const resourceState = {
   intervalMs: 10000,
   timer: 0,
+};
+
+const clockState = {
+  timer: 0,
+  config: null,
 };
 
 const outdoorState = {
@@ -144,6 +165,38 @@ function loadChartVisibility() {
 function saveChartVisibility() {
   try {
     localStorage.setItem("chartVisibility", JSON.stringify(chartVisibility));
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function loadClockConfig() {
+  const defaults = {
+    enabled: true,
+    timezoneMode: "location",
+    manualTimezone: "",
+    format: "24h",
+    fontFamily: "inherit",
+    showSeconds: true,
+    showMillis: false,
+    showDate: true,
+    showTimezone: true,
+    ntpPools: "pool.ntp.org",
+    syncIntervalMin: 60,
+  };
+  try {
+    const raw = localStorage.getItem("clockConfig");
+    if (!raw) return { ...defaults };
+    const parsed = JSON.parse(raw);
+    return { ...defaults, ...parsed };
+  } catch (_) {
+    return { ...defaults };
+  }
+}
+
+function saveClockConfig(cfg) {
+  try {
+    localStorage.setItem("clockConfig", JSON.stringify(cfg));
   } catch (_) {
     /* ignore */
   }
@@ -422,6 +475,7 @@ function saveOutdoorConfig(cfg) {
         lon: cfg.lon,
         city: cfg.city,
         country: cfg.country,
+        timezone: cfg.timezone,
       }),
     });
   } catch (_) {
@@ -456,12 +510,100 @@ function setSelection(loc) {
   const input = selectors.searchInput();
   if (input) input.value = formatLocationLabel(loc);
   setSearchStatus(`Selected: ${formatLocationLabel(loc)} (${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)})`);
+  if ((clockState.config || loadClockConfig()).timezoneMode === "location") {
+    startClockLoop();
+  }
 }
 
 function renderOutdoorCondition(metrics) {
   const iconEl = selectors.outdoorConditionIcon();
   const conditionKey = metrics?.conditionKey || "unknown";
   if (iconEl) iconEl.innerHTML = buildWeatherIcon(conditionKey);
+}
+
+function resolveActiveTimezone() {
+  const cfg = clockState.config || loadClockConfig();
+  if (cfg.timezoneMode === "manual" && cfg.manualTimezone) return cfg.manualTimezone;
+  const sel = outdoorState.selection || outdoorState.config;
+  if (cfg.timezoneMode === "location" && sel?.timezone) return sel.timezone;
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return browserTz || "UTC";
+}
+
+function renderClock() {
+  const banner = selectors.clockBanner();
+  if (!banner) return;
+  const cfg = clockState.config || loadClockConfig();
+  if (!cfg.enabled) {
+    banner.hidden = true;
+    return;
+  }
+  banner.hidden = false;
+
+  const timeEl = selectors.clockTime();
+  const msEl = selectors.clockMs();
+  const dateEl = selectors.clockDate();
+  const zoneEl = selectors.clockZone();
+  const tz = resolveActiveTimezone();
+  const now = new Date();
+  const fontFamily = cfg.fontFamily && cfg.fontFamily !== "inherit" ? cfg.fontFamily : "";
+  if (fontFamily) {
+    banner.style.setProperty("--clock-font", fontFamily);
+  } else {
+    banner.style.removeProperty("--clock-font");
+  }
+  const formatOpts = {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: cfg.format === "12h",
+    timeZone: tz,
+  };
+  if (cfg.showSeconds) formatOpts.second = "2-digit";
+  const timeString = new Intl.DateTimeFormat("en-US", formatOpts).format(now);
+  if (timeEl) timeEl.textContent = timeString;
+
+  if (msEl) {
+    if (cfg.showMillis) {
+      const ms = String(now.getMilliseconds()).padStart(3, "0");
+      msEl.textContent = `.${ms}`;
+      msEl.hidden = false;
+    } else {
+      msEl.hidden = true;
+    }
+  }
+  if (dateEl) {
+    if (cfg.showDate) {
+      dateEl.textContent = new Intl.DateTimeFormat("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        timeZone: tz,
+      }).format(now);
+      dateEl.hidden = false;
+    } else {
+      dateEl.hidden = true;
+    }
+  }
+
+  if (zoneEl) {
+    zoneEl.textContent = cfg.showTimezone ? tz : "";
+    zoneEl.hidden = !cfg.showTimezone;
+  }
+}
+
+function stopClockLoop() {
+  if (clockState.timer) {
+    clearInterval(clockState.timer);
+    clockState.timer = 0;
+  }
+}
+
+function startClockLoop() {
+  stopClockLoop();
+  clockState.config = clockState.config || loadClockConfig();
+  renderClock();
+  const interval = clockState.config.showMillis ? 120 : 1000;
+  clockState.timer = window.setInterval(renderClock, interval);
 }
 
 function updateForecastCards() {
@@ -595,6 +737,7 @@ async function queryLocations(query) {
       admin1: r.admin1 || r.admin2 || "",
       lat: toNumber(r.latitude),
       lon: toNumber(r.longitude),
+      timezone: r.timezone || r.timezone_abbreviation || "",
     }))
     .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon));
 }
@@ -619,6 +762,7 @@ function applyConfigToForm(cfg) {
       admin1: cfg.admin1 || "",
       lat: cfg.lat,
       lon: cfg.lon,
+      timezone: cfg.timezone,
     };
     outdoorState.selection = loc;
     if (searchInput) searchInput.value = formatLocationLabel(loc);
@@ -628,6 +772,59 @@ function applyConfigToForm(cfg) {
     if (searchInput) searchInput.value = "";
     setSearchStatus("Type 2+ letters to search.");
   }
+}
+
+function applyClockConfigToForm(cfg) {
+  selectors.clockEnable()?.setAttribute("aria-checked", cfg.enabled ? "true" : "false");
+  const enable = selectors.clockEnable();
+  if (enable) enable.checked = Boolean(cfg.enabled);
+  const mode = selectors.clockTimezoneMode();
+  if (mode) mode.value = cfg.timezoneMode || "location";
+  const manual = selectors.clockTimezoneManual();
+  if (manual) manual.value = cfg.manualTimezone || "";
+  const formatSel = selectors.clockFormatSelect();
+  if (formatSel) formatSel.value = cfg.format || "24h";
+  const fontSel = selectors.clockFontSelect();
+  if (fontSel) fontSel.value = cfg.fontFamily || "inherit";
+  const sec = selectors.clockShowSeconds();
+  if (sec) sec.checked = Boolean(cfg.showSeconds);
+  const ms = selectors.clockShowMillis();
+  if (ms) ms.checked = Boolean(cfg.showMillis);
+  const date = selectors.clockShowDate();
+  if (date) date.checked = Boolean(cfg.showDate);
+  const tz = selectors.clockShowTimezone();
+  if (tz) tz.checked = Boolean(cfg.showTimezone);
+  const pools = selectors.clockNtpPools();
+  if (pools) pools.value = cfg.ntpPools || "";
+  const sync = selectors.clockSyncInterval();
+  if (sync) sync.value = cfg.syncIntervalMin || 60;
+}
+
+function readClockConfigFromForm() {
+  const cfg = clockState.config || loadClockConfig();
+  const enable = selectors.clockEnable();
+  cfg.enabled = enable ? enable.checked : cfg.enabled;
+  const mode = selectors.clockTimezoneMode();
+  cfg.timezoneMode = mode ? mode.value : cfg.timezoneMode;
+  const manual = selectors.clockTimezoneManual();
+  cfg.manualTimezone = manual ? manual.value.trim() : cfg.manualTimezone;
+  const formatSel = selectors.clockFormatSelect();
+  cfg.format = formatSel ? formatSel.value : cfg.format;
+  const fontSel = selectors.clockFontSelect();
+  cfg.fontFamily = fontSel ? fontSel.value : cfg.fontFamily;
+  const sec = selectors.clockShowSeconds();
+  cfg.showSeconds = sec ? sec.checked : cfg.showSeconds;
+  const ms = selectors.clockShowMillis();
+  cfg.showMillis = ms ? ms.checked : cfg.showMillis;
+  const date = selectors.clockShowDate();
+  cfg.showDate = date ? date.checked : cfg.showDate;
+  const tz = selectors.clockShowTimezone();
+  cfg.showTimezone = tz ? tz.checked : cfg.showTimezone;
+  const pools = selectors.clockNtpPools();
+  cfg.ntpPools = pools ? pools.value.trim() : cfg.ntpPools;
+  const sync = selectors.clockSyncInterval();
+  cfg.syncIntervalMin = sync ? Number(sync.value) || cfg.syncIntervalMin : cfg.syncIntervalMin;
+  return cfg;
 }
 
 function readConfigFromForm() {
@@ -640,6 +837,7 @@ function readConfigFromForm() {
     cfg.admin1 = sel.admin1;
     cfg.lat = sel.lat;
     cfg.lon = sel.lon;
+    cfg.timezone = sel.timezone;
   }
   return cfg;
 }
@@ -812,7 +1010,7 @@ function renderWeatherChart(options = {}) {
 
   const margin = {
     top: 24 * dpr,
-    right: 56 * dpr,
+    right: 32 * dpr,
     bottom: 40 * dpr,
     left: 60 * dpr,
   };
@@ -877,12 +1075,6 @@ function renderWeatherChart(options = {}) {
   }
 
   ctx.textAlign = "left";
-  const humidityTicks = [0, 25, 50, 75, 100];
-  humidityTicks.forEach((value) => {
-    const ratio = (value - humMin) / humRange;
-    const y = margin.top + chartHeight * (1 - ratio);
-    ctx.fillText(`${value}%`, margin.left + chartWidth + 12 * dpr, y);
-  });
 
   const projectX = (ts) => margin.left + ((ts - firstTs) / domain) * chartWidth;
   const projectTempY = (value) => margin.top + (1 - (value - tempMin) / tempRange) * chartHeight;
@@ -1611,8 +1803,10 @@ function startWeatherLoop(immediate = true) {
 function handleWeatherVisibility() {
   if (document.hidden) {
     clearWeatherTimer();
+    stopClockLoop();
   } else {
     startWeatherLoop(false);
+    startClockLoop();
   }
 }
 
@@ -1625,6 +1819,10 @@ function initServicePage() {
       startWeatherLoop(true);
     });
   }
+
+  clockState.config = loadClockConfig();
+  applyClockConfigToForm(clockState.config);
+  startClockLoop();
 
   loadChartVisibility();
   loadWeatherHistory();
@@ -1657,6 +1855,7 @@ function initServicePage() {
         city: cfg.city || outdoorState.config.city,
         lat: Number(cfg.lat),
         lon: Number(cfg.lon),
+        timezone: cfg.timezone || outdoorState.config.timezone,
       };
       if (Number.isFinite(merged.lat) && Number.isFinite(merged.lon)) {
         outdoorState.config = merged;
@@ -1709,6 +1908,7 @@ function initServicePage() {
   if (setupBtn) {
     setupBtn.addEventListener("click", () => {
       applyConfigToForm(outdoorState.config || loadOutdoorConfig());
+      applyClockConfigToForm(clockState.config || loadClockConfig());
       openModal();
     });
   }
@@ -1734,6 +1934,9 @@ function initServicePage() {
       forecastState.data = {};
       updateForecastCards();
       saveOutdoorConfig(withGeo);
+      clockState.config = readClockConfigFromForm();
+      saveClockConfig(clockState.config);
+      startClockLoop();
       updateLocationSummary();
       closeModal();
       fetchOutdoorWeather(true);

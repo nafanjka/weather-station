@@ -14,7 +14,23 @@
         <h1>Weather Station</h1>
         <p class="subtitle" id="location-summary">Location: not set</p>
       </div>
-      <button id="outdoor-setup-btn" class="button-link tertiary">Setup weather</button>
+      <div class="heading-actions">
+        <div class="clock-banner compact" id="clock-banner">
+          <div class="clock-glow"></div>
+          <div class="clock-content">
+            <div class="clock-row">
+              <div class="clock-time" id="clock-time">--:--</div>
+              <span class="clock-ms" id="clock-ms">.--- </span>
+            </div>
+            <div class="clock-subrow">
+              <span class="clock-date" id="clock-date">—</span>
+              <span class="clock-dot" aria-hidden="true">•</span>
+              <span class="clock-zone" id="clock-zone">Local</span>
+            </div>
+          </div>
+        </div>
+        <button id="outdoor-setup-btn" class="button-link tertiary">Setup Clock and Weather</button>
+      </div>
     </header>
 
     <section class="weather-service">
@@ -304,6 +320,87 @@
         </select>
 
         <div id="city-selectors">
+        <div class="modal-section">
+          <div class="section-heading">
+            <div>
+              <h4>Clock & Time</h4>
+              <p class="subtitle">NTP source, timezone, and display preferences.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="clock-enable" />
+              <span class="switch-slider"></span>
+              <span class="switch-label">Show clock</span>
+            </label>
+          </div>
+
+          <div class="form-grid two-col">
+            <label class="field">
+              <span class="field-label">Timezone mode</span>
+              <select id="clock-timezone-mode">
+                <option value="location">Use selected city timezone</option>
+                <option value="manual">Manual timezone</option>
+              </select>
+              <span class="hint">Location must provide timezone; otherwise falls back to browser.</span>
+            </label>
+
+            <label class="field">
+              <span class="field-label">Manual timezone</span>
+              <input id="clock-timezone-manual" type="text" placeholder="e.g. Europe/Prague" list="tz-hints" />
+              <datalist id="tz-hints">
+                <option value="UTC"></option>
+                <option value="Europe/London"></option>
+                <option value="Europe/Prague"></option>
+                <option value="Europe/Paris"></option>
+                <option value="America/New_York"></option>
+                <option value="America/Los_Angeles"></option>
+                <option value="Asia/Tokyo"></option>
+                <option value="Asia/Singapore"></option>
+                <option value="Australia/Sydney"></option>
+              </datalist>
+            </label>
+
+            <label class="field">
+              <span class="field-label">Clock format</span>
+              <select id="clock-format-select">
+                <option value="24h">24-hour</option>
+                <option value="12h">12-hour</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">Time font</span>
+              <select id="clock-font-select">
+                <option value="inherit">Default (system)</option>
+                <option value="'Inter', 'Segoe UI', Arial, sans-serif">Inter</option>
+                <option value="'Montserrat', 'Segoe UI', Arial, sans-serif">Montserrat</option>
+                <option value="'Fira Code', 'SFMono-Regular', 'Consolas', monospace">Fira Code</option>
+                <option value="'Poppins', 'Segoe UI', Arial, sans-serif">Poppins</option>
+                <option value="'Comic Sans MS', 'Comic Sans', cursive">Comic Sans</option>
+                <option value="'Marker Felt', 'Comic Sans MS', cursive">Marker Felt</option>
+                <option value="'Snell Roundhand', 'Comic Sans MS', cursive">Snell Roundhand</option>
+              </select>
+            </label>
+
+            <div class="field toggle-group">
+              <span class="field-label">Details</span>
+              <label class="toggle"><input type="checkbox" id="clock-show-seconds" checked /><span>Show seconds</span></label>
+              <label class="toggle"><input type="checkbox" id="clock-show-millis" /><span>Show milliseconds</span></label>
+              <label class="toggle"><input type="checkbox" id="clock-show-date" checked /><span>Show date</span></label>
+              <label class="toggle"><input type="checkbox" id="clock-show-timezone" checked /><span>Show timezone</span></label>
+            </div>
+
+            <label class="field">
+              <span class="field-label">NTP pools (comma separated)</span>
+              <input id="clock-ntp-pools" type="text" placeholder="pool.ntp.org, time.google.com" />
+              <span class="hint">Stored locally; optionally sync to device if endpoint is available.</span>
+            </label>
+
+            <label class="field">
+              <span class="field-label">Sync interval (minutes)</span>
+              <input id="clock-sync-interval" type="number" min="5" max="720" step="5" value="60" />
+            </label>
+          </div>
+        </div>
           <label class="field-label" for="outdoor-search">Search city</label>
           <input id="outdoor-search" type="text" placeholder="Start typing to search" autocomplete="off" />
           <div class="search-hint" id="outdoor-search-status">Type 2+ letters to search.</div>

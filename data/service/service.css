@@ -29,8 +29,16 @@ main {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
   width: 100%;
+}
+
+.heading-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 260px;
 }
 
 .heading-left {
@@ -57,13 +65,13 @@ button,
 }
 
 #location-summary {
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 600;
   color: #60a5fa;
 }
 
 .page-heading h1 {
-  font-size: 24px;
+  font-size: 36px;
   letter-spacing: 0.01em;
   margin: 0;
 }
@@ -139,7 +147,7 @@ button.secondary,
   display: flex;
   flex-direction: column;
   gap: 24px;
-  margin-top: 32px;
+  margin-top: 2px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 16px;
   padding: 28px;
@@ -152,6 +160,84 @@ button.secondary,
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
+}
+
+.clock-banner {
+  position: relative;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(124, 58, 237, 0.18));
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  overflow: hidden;
+}
+
+.clock-banner.compact {
+  padding: 12px 16px;
+  min-width: 260px;
+}
+
+.clock-banner[hidden] {
+  display: none;
+}
+
+.clock-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.25), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(139, 92, 246, 0.25), transparent 45%);
+  filter: blur(12px);
+  opacity: 0.9;
+}
+
+.clock-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.clock-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.clock-time {
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #f8fafc;
+  text-shadow: 0 0 16px rgba(59, 130, 246, 0.4);
+  font-family: var(--clock-font, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+}
+
+.clock-ms {
+  font-size: 18px;
+  color: #7dd3fc;
+  letter-spacing: 0.08em;
+  font-family: var(--clock-font, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+}
+
+
+.clock-subrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(226, 232, 240, 0.9);
+  font-size: 14px;
+}
+
+.clock-dot {
+  color: #7c3aed;
+}
+
+.clock-zone {
+  color: #a5b4fc;
+}
+
+.clock-ntp {
+  font-size: 13px;
+  color: rgba(148, 163, 184, 0.85);
 }
 
 .weather-heading h2 {
@@ -790,6 +876,100 @@ button.secondary,
   margin-top: 12px;
 }
 
+.modal-section {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(9, 14, 28, 0.85);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-grid.two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toggle-group {
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  padding: 10px;
+  gap: 6px;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.toggle input {
+  accent-color: #7c3aed;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.switch input {
+  display: none;
+}
+
+.switch-slider {
+  width: 44px;
+  height: 24px;
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.switch-slider::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+  background: #f8fafc;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.switch input:checked + .switch-slider {
+  background: linear-gradient(135deg, #22d3ee, #2563eb);
+}
+
+.switch input:checked + .switch-slider::after {
+  transform: translateX(18px);
+}
+
+.switch-label {
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.9);
+}
+
 .field-label {
   font-size: 13px;
   color: rgba(203, 213, 225, 0.9);
@@ -849,6 +1029,17 @@ select {
 }
 
 input#outdoor-search {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.7);
+  color: #e2e8f0;
+  font-size: 14px;
+  width: 100%;
+}
+
+.modal-section input[type="text"],
+.modal-section input[type="number"] {
   padding: 10px;
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.35);
