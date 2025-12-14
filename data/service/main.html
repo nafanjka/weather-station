@@ -59,10 +59,11 @@
                   <span class="weather-value compact"><span id="weather-temp-indoor">—</span><span class="unit">°C</span></span>
                   <span class="metric-sub" id="weather-temp-f-indoor">— °F</span>
                 </div>
-                <div class="metric-line">
+                <div class="metric-line metric-outdoor-temp">
                   <span class="metric-label outdoor" data-metric="temp">Outdoor</span>
                   <span class="weather-value compact"><span id="weather-temp-outdoor">—</span><span class="unit">°C</span></span>
                   <span class="metric-sub" id="weather-temp-f-outdoor">— °F</span>
+                  <span class="condition-inline condition-inline-main" id="outdoor-condition-icon"></span>
                 </div>
               </div>
               <p class="weather-sub">Dew point <span id="weather-dewpoint">—</span> °C</p>
@@ -80,6 +81,10 @@
                   <span class="weather-value compact"><span id="weather-humidity-outdoor">—</span><span class="unit">%</span></span>
                 </div>
               </div>
+              <p class="weather-sub wind-row">
+                <span class="wind-chip" aria-hidden="true">Wind</span>
+                <span class="wind-value"><span id="weather-wind-outdoor">—</span> m/s</span>
+              </p>
             </article>
           </div>
         </div>
@@ -164,6 +169,7 @@
           <div class="forecast-grid" id="forecast-grid">
             <article class="forecast-card" data-horizon="1">
               <div class="forecast-horizon">+1h</div>
+              <div class="forecast-condition" id="forecast-icon-1"></div>
               <div class="forecast-metrics">
                 <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-1">—</span></div>
                 <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-1">—</span></div>
@@ -172,6 +178,7 @@
             </article>
             <article class="forecast-card" data-horizon="3">
               <div class="forecast-horizon">+3h</div>
+              <div class="forecast-condition" id="forecast-icon-3"></div>
               <div class="forecast-metrics">
                 <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-3">—</span></div>
                 <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-3">—</span></div>
@@ -180,6 +187,7 @@
             </article>
             <article class="forecast-card" data-horizon="6">
               <div class="forecast-horizon">+6h</div>
+              <div class="forecast-condition" id="forecast-icon-6"></div>
               <div class="forecast-metrics">
                 <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-6">—</span></div>
                 <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-6">—</span></div>
@@ -188,6 +196,7 @@
             </article>
             <article class="forecast-card" data-horizon="12">
               <div class="forecast-horizon">+12h</div>
+              <div class="forecast-condition" id="forecast-icon-12"></div>
               <div class="forecast-metrics">
                 <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-12">—</span></div>
                 <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-12">—</span></div>
@@ -196,6 +205,7 @@
             </article>
             <article class="forecast-card" data-horizon="24">
               <div class="forecast-horizon">+24h</div>
+              <div class="forecast-condition" id="forecast-icon-24"></div>
               <div class="forecast-metrics">
                 <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-24">—</span></div>
                 <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-24">—</span></div>
@@ -204,6 +214,7 @@
             </article>
             <article class="forecast-card" data-horizon="48">
               <div class="forecast-horizon">+48h</div>
+              <div class="forecast-condition" id="forecast-icon-48"></div>
               <div class="forecast-metrics">
                 <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-48">—</span></div>
                 <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-48">—</span></div>
@@ -212,6 +223,7 @@
             </article>
             <article class="forecast-card" data-horizon="72">
               <div class="forecast-horizon">+72h</div>
+              <div class="forecast-condition" id="forecast-icon-72"></div>
               <div class="forecast-metrics">
                 <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-72">—</span></div>
                 <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-72">—</span></div>
@@ -220,6 +232,7 @@
             </article>
             <article class="forecast-card" data-horizon="96">
               <div class="forecast-horizon">+96h</div>
+              <div class="forecast-condition" id="forecast-icon-96"></div>
               <div class="forecast-metrics">
                 <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-96">—</span></div>
                 <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-96">—</span></div>

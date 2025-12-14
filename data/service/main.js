@@ -8,6 +8,7 @@ const selectors = {
   weatherHumidityIndoor: () => document.getElementById("weather-humidity-indoor"),
   weatherHumidityOutdoor: () => document.getElementById("weather-humidity-outdoor"),
   weatherDewPoint: () => document.getElementById("weather-dewpoint"),
+  weatherWindOutdoor: () => document.getElementById("weather-wind-outdoor"),
   weatherPressureIndoor: () => document.getElementById("weather-pressure-indoor"),
   weatherPressureHpaIndoor: () => document.getElementById("weather-pressure-hpa-indoor"),
   weatherPressureOutdoor: () => document.getElementById("weather-pressure-outdoor"),
@@ -21,6 +22,7 @@ const selectors = {
   pressureChart: () => document.getElementById("pressure-chart"),
   sensorSht31Status: () => document.getElementById("sensor-sht31-status"),
   sensorBmp580Status: () => document.getElementById("sensor-bmp580-status"),
+  outdoorConditionIcon: () => document.getElementById("outdoor-condition-icon"),
   locationSummary: () => document.getElementById("location-summary"),
   setupBtn: () => document.getElementById("outdoor-setup-btn"),
   modal: () => document.getElementById("outdoor-modal"),
@@ -35,6 +37,7 @@ const selectors = {
   forecastGrid: () => document.getElementById("forecast-grid"),
   forecastUpdated: () => document.getElementById("forecast-updated"),
   forecastValue: (metric, horizon) => document.getElementById(`forecast-${metric}-${horizon}`),
+  forecastIcon: (horizon) => document.getElementById(`forecast-icon-${horizon}`),
   resourcesUpdated: () => document.getElementById("resources-updated"),
   resUptime: () => document.getElementById("res-uptime"),
   resHeap: () => document.getElementById("res-heap"),
@@ -269,6 +272,115 @@ function formatShortTime(ts) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function resolveCondition(code) {
+  const n = toNumber(code);
+  const mapping = [
+    { codes: [0], key: "sunny", label: "Clear sky" },
+    { codes: [1, 2], key: "partly", label: "Partly cloudy" },
+    { codes: [3], key: "cloudy", label: "Overcast" },
+    { codes: [45, 48], key: "mist", label: "Foggy" },
+    { codes: [51, 53, 55, 56, 57], key: "drizzle", label: "Drizzle" },
+    { codes: [61, 63, 65, 80, 81, 82], key: "rain", label: "Rain showers" },
+    { codes: [66, 67], key: "icy", label: "Freezing rain" },
+    { codes: [71, 73, 75, 77, 85, 86], key: "snow", label: "Snow" },
+    { codes: [95], key: "storm", label: "Thunderstorm" },
+    { codes: [96, 99], key: "storm-rain", label: "Storm with hail" },
+  ];
+  const match = mapping.find((m) => m.codes.includes(n));
+  if (match) return { key: match.key, label: match.label, code: n };
+  return { key: "unknown", label: "Outdoor status", code: Number.isFinite(n) ? n : null };
+}
+
+function buildWeatherIcon(kind = "unknown") {
+  const k = kind || "unknown";
+  const gradients = `
+    <defs>
+      <linearGradient id="sunGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#fde047" />
+        <stop offset="100%" stop-color="#f97316" />
+      </linearGradient>
+      <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#cbd5e1" stop-opacity="0.9" />
+        <stop offset="100%" stop-color="#94a3b8" stop-opacity="0.9" />
+      </linearGradient>
+      <linearGradient id="rainGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#60a5fa" />
+        <stop offset="100%" stop-color="#22d3ee" />
+      </linearGradient>
+      <linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#facc15" />
+        <stop offset="100%" stop-color="#f97316" />
+      </linearGradient>
+      <linearGradient id="mistGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#cbd5e1" />
+        <stop offset="100%" stop-color="#94a3b8" />
+      </linearGradient>
+    </defs>
+  `;
+
+  const sun = `
+    <g>
+      <circle class="wx-sun-core" cx="30" cy="30" r="12" />
+      <g class="wx-sun-rays">
+        <line x1="30" y1="7" x2="30" y2="18" />
+        <line x1="30" y1="42" x2="30" y2="53" />
+        <line x1="7" y1="30" x2="18" y2="30" />
+        <line x1="42" y1="30" x2="53" y2="30" />
+        <line x1="14" y1="14" x2="21" y2="21" />
+        <line x1="39" y1="39" x2="46" y2="46" />
+        <line x1="14" y1="46" x2="21" y2="39" />
+        <line x1="39" y1="21" x2="46" y2="14" />
+      </g>
+    </g>
+  `;
+
+  const cloudBack = '<path class="wx-cloud wx-cloud-back" d="M18 36c-5.5 0-10 3.8-10 8.8C8 49.7 12.5 54 18 54h29c6.2 0 11.2-4.3 11.2-9.2 0-4.5-4.4-8.3-9.8-9-1.3-7-6.9-12-13.7-12-6.6 0-11.9 4.4-13.4 10.2-0.9-0.2-1.7-0.2-2.3-0.2Z" />';
+  const cloudFront = '<path class="wx-cloud" d="M22 40c-4.8 0-8.6 3.4-8.6 7.8 0 4.4 3.8 8 8.6 8h22.5c5.1 0 9.1-3.6 9.1-8 0-3.8-3.7-7-8.4-7.8-1.1-5.6-5.5-9.6-10.9-9.6-5.2 0-9.5 3.5-10.7 8.4-0.7-0.2-1.4-0.3-2-0.3Z" />';
+
+  const drops = `
+    <g transform="translate(10,44)">
+      <path class="wx-raindrop" d="M8 0c-3 4-4 7-4 9.5C4 13 6.5 15 8.5 15 10.8 15 13 12.8 13 9.8 13 6.8 11 4 8 0Z" />
+      <path class="wx-raindrop" d="M22 2c-2.6 3.4-3.6 6-3.6 8.2 0 2.5 1.8 4.4 3.8 4.4 2.2 0 4.2-1.9 4.2-4.5 0-2.5-1.5-5.1-4.4-8.1Z" />
+      <path class="wx-raindrop" d="M36 -1c-2.8 3.6-3.8 6.3-3.8 8.7C32.2 10.8 34 13 36 13c2.3 0 4.2-2.2 4.2-4.8 0-2.6-1.4-5.4-4.2-9.2Z" />
+    </g>
+  `;
+
+  const snow = `
+    <g transform="translate(12,44)">
+      <circle class="wx-snow" cx="8" cy="8" r="3" />
+      <circle class="wx-snow" cx="22" cy="10" r="3" />
+      <circle class="wx-snow" cx="36" cy="8" r="3" />
+    </g>
+  `;
+
+  const mist = `
+    <g transform="translate(10,42)">
+      <line class="wx-mist-line" x1="0" y1="0" x2="44" y2="0" />
+      <line class="wx-mist-line" x1="4" y1="10" x2="48" y2="10" />
+      <line class="wx-mist-line" x1="2" y1="20" x2="42" y2="20" />
+    </g>
+  `;
+
+  const bolt = '<path class="wx-bolt" d="M34 28h8l-7 12h7l-16 18 5-13h-8l7-17Z" />';
+
+  const iconByKind = {
+    sunny: `${sun}`,
+    partly: `${sun}${cloudFront}`,
+    cloudy: `${cloudBack}${cloudFront}`,
+    drizzle: `${cloudBack}${cloudFront}${drops}`,
+    rain: `${cloudBack}${cloudFront}${drops}`,
+    icy: `${cloudBack}${cloudFront}${drops}`,
+    snow: `${cloudBack}${cloudFront}${snow}`,
+    mist: `${cloudBack}${cloudFront}${mist}`,
+    storm: `${cloudBack}${cloudFront}${bolt}`,
+    "storm-rain": `${cloudBack}${cloudFront}${bolt}${drops}`,
+    unknown: `${cloudBack}${cloudFront}`,
+  };
+
+  const body = iconByKind[k] || iconByKind.unknown;
+  return `<div class="wx-icon wx-${k}"><svg viewBox="0 0 64 64" role="presentation" aria-hidden="true">${gradients}${body}</svg></div>`;
+}
+
 function debounce(fn, delay = 250) {
   let t = 0;
   return (...args) => {
@@ -346,18 +458,31 @@ function setSelection(loc) {
   setSearchStatus(`Selected: ${formatLocationLabel(loc)} (${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)})`);
 }
 
+function renderOutdoorCondition(metrics) {
+  const iconEl = selectors.outdoorConditionIcon();
+  const conditionKey = metrics?.conditionKey || "unknown";
+  if (iconEl) iconEl.innerHTML = buildWeatherIcon(conditionKey);
+}
+
 function updateForecastCards() {
   forecastState.horizons.forEach((h) => {
     const tempEl = selectors.forecastValue("temp", h);
     const humEl = selectors.forecastValue("hum", h);
     const presEl = selectors.forecastValue("pres", h);
+    const iconEl = selectors.forecastIcon(h);
     const data = forecastState.data[h];
     const temp = data ? formatMetric(toNumber(data.temp), 1) : "—";
     const hum = data ? formatMetric(toNumber(data.humidity), 0) : "—";
     const pres = data ? formatMetric(toNumber(data.pressureMmHg), 0) : "—";
+    const conditionKey = data?.conditionKey || "unknown";
     if (tempEl) tempEl.textContent = `${temp}°C`;
     if (humEl) humEl.textContent = `${hum}%`;
     if (presEl) presEl.textContent = `${pres} mmHg`;
+    if (iconEl) {
+      iconEl.innerHTML = buildWeatherIcon(conditionKey);
+      iconEl.dataset.kind = conditionKey;
+      iconEl.setAttribute("aria-label", conditionKey);
+    }
   });
 
   const updatedEl = selectors.forecastUpdated();
@@ -383,12 +508,13 @@ async function fetchForecast(cfg) {
   if (forecastState.lastFetch && now - forecastState.lastFetch < 10 * 60 * 1000) {
     return; // cache for 10 minutes
   }
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${cfg.lat}&longitude=${cfg.lon}&hourly=temperature_2m,relative_humidity_2m,pressure_msl&timezone=auto`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${cfg.lat}&longitude=${cfg.lon}&hourly=temperature_2m,relative_humidity_2m,pressure_msl,weathercode&timezone=auto`;
   const data = await fetchJSON(url);
   const times = data?.hourly?.time || [];
   const temps = data?.hourly?.temperature_2m || [];
   const hums = data?.hourly?.relative_humidity_2m || [];
   const presses = data?.hourly?.pressure_msl || [];
+  const codes = data?.hourly?.weathercode || [];
   const targets = forecastState.horizons.map((h) => now + h * 60 * 60 * 1000);
 
   const parsed = {};
@@ -404,11 +530,15 @@ async function fetchForecast(cfg) {
     }
     const horizon = forecastState.horizons[idx];
     if (bestIdx >= 0) {
+      const condition = resolveCondition(codes[bestIdx]);
       parsed[horizon] = {
         temp: temps[bestIdx],
         humidity: hums[bestIdx],
         pressureHpa: presses[bestIdx],
         pressureMmHg: Number.isFinite(presses[bestIdx]) ? presses[bestIdx] / 1.33322 : NaN,
+        conditionKey: condition.key,
+        conditionLabel: condition.label,
+        conditionCode: condition.code,
       };
     } else {
       parsed[horizon] = null;
@@ -567,6 +697,7 @@ function updateWeatherTiles(payload) {
   const outPressureMmHg = Number.isFinite(outPressureHpa) ? outPressureHpa / 1.33322 : NaN;
   const outAltitudeM = toNumber(out.altitudeM);
   const outAltitudeFt = Number.isFinite(outAltitudeM) ? outAltitudeM * 3.28084 : NaN;
+  const outWindSpeed = toNumber(out.windSpeed);
 
   const tempInEl = selectors.weatherTempIndoor();
   if (tempInEl) tempInEl.textContent = formatMetric(tempC);
@@ -584,6 +715,9 @@ function updateWeatherTiles(payload) {
   if (humidityInEl) humidityInEl.textContent = formatMetric(humidity);
   const humidityOutEl = selectors.weatherHumidityOutdoor();
   if (humidityOutEl) humidityOutEl.textContent = formatMetric(outHumidity);
+
+  const windOutEl = selectors.weatherWindOutdoor();
+  if (windOutEl) windOutEl.textContent = formatMetric(outWindSpeed);
 
   const pressureInEl = selectors.weatherPressureIndoor();
   if (pressureInEl) pressureInEl.textContent = formatMetric(pressureMmHg);
@@ -612,6 +746,8 @@ function updateWeatherTiles(payload) {
   const bmpInfo = sensors?.bmp580 || {};
   setSensorState(shtStatus, Boolean(shtInfo.present), Boolean(shtInfo.ok));
   setSensorState(bmpStatus, Boolean(bmpInfo.present), Boolean(bmpInfo.ok));
+
+  renderOutdoorCondition(outdoorState.metrics);
 }
 
 function pushWeatherHistory(payload, timestamp) {
@@ -1192,6 +1328,10 @@ function attachLegendToggles() {
       applyLegendVisibilityStyles();
       saveChartVisibility();
       renderCharts();
+      const historyModal = selectors.historyModal();
+      if (historyModal && !historyModal.hidden) {
+        renderHistoryCharts();
+      }
     });
   });
   applyLegendVisibilityStyles();
@@ -1262,15 +1402,21 @@ async function fetchOutdoorWeather(force = false) {
   outdoorState.fetching = true;
   try {
     if (cfg.provider === "open-meteo") {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${cfg.lat}&longitude=${cfg.lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,apparent_temperature&timezone=auto`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${cfg.lat}&longitude=${cfg.lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,apparent_temperature,weather_code,wind_speed_10m&windspeed_unit=ms&timezone=auto`;
       const data = await fetchJSON(url);
       const current = data?.current || {};
+      const condition = resolveCondition(current.weather_code);
+      const windSpeedMs = toNumber(current.wind_speed_10m);
       outdoorState.metrics = {
         temperatureC: toNumber(current.temperature_2m),
         humidity: toNumber(current.relative_humidity_2m),
         pressureHpa: toNumber(current.pressure_msl),
         pressureMmHg: Number.isFinite(current.pressure_msl) ? current.pressure_msl / 1.33322 : NaN,
         altitudeM: toNumber(data?.elevation),
+        windSpeed: Number.isFinite(windSpeedMs) ? windSpeedMs : NaN,
+        conditionKey: condition.key,
+        conditionLabel: condition.label,
+        conditionCode: condition.code,
       };
       await fetchForecast(cfg);
     } else if (cfg.provider === "metno") {
@@ -1285,11 +1431,15 @@ async function fetchOutdoorWeather(force = false) {
           ? instant.air_pressure_at_sea_level / 1.33322
           : NaN,
         altitudeM: NaN,
+        windSpeed: toNumber(instant.wind_speed),
+        conditionKey: "cloudy",
+        conditionLabel: "Clouds",
+        conditionCode: null,
       };
       // MET Norway: skip forecast to keep traffic low
     } else if (cfg.provider === "weatherapi") {
       // Placeholder: requires API key; we keep values unchanged.
-      outdoorState.metrics = outdoorState.metrics || {};
+      outdoorState.metrics = outdoorState.metrics || { conditionKey: "unknown", conditionLabel: "Outdoor status" };
     }
     outdoorState.lastFetch = Date.now();
     updateWeatherTiles(weatherState.lastPayload || {});
@@ -1322,6 +1472,9 @@ function pushOutdoorCache() {
       humidity: toNumber(slot.humidity),
       pressureHpa,
       pressureMmHg,
+      conditionKey: slot.conditionKey,
+      conditionLabel: slot.conditionLabel,
+      conditionCode: slot.conditionCode,
     };
   });
 
@@ -1338,6 +1491,10 @@ function pushOutdoorCache() {
           ? pressureHpa / 1.33322
           : NaN,
       altitudeM: toNumber(metrics.altitudeM),
+      windSpeed: toNumber(metrics.windSpeed),
+      conditionKey: metrics.conditionKey,
+      conditionLabel: metrics.conditionLabel,
+      conditionCode: metrics.conditionCode,
     },
     outlook: outlookPayload,
   };
