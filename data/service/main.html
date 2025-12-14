@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Device Service Portal</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/service/service.css" />
+</head>
+<body data-page="service">
+  <main class="service-page">
+    <header class="page-heading">
+      <div class="heading-left">
+        <h1>Weather Station</h1>
+        <p class="subtitle" id="location-summary">Location: not set</p>
+      </div>
+      <button id="outdoor-setup-btn" class="button-link tertiary">Setup weather</button>
+    </header>
+
+    <section class="weather-service">
+      <div class="weather-heading">
+        <div>
+          <h2>Weather Service</h2>
+          <p class="subtitle">Live telemetry from SHT31 (temperature & humidity) and BMP580 (pressure & altitude) sensors.</p>
+        </div>
+        <div class="weather-controls">
+          <label for="weather-interval">Refresh every</label>
+          <select id="weather-interval">
+            <option value="2000">2 s</option>
+            <option value="5000">5 s</option>
+            <option value="10000">10 s</option>
+            <option value="30000">30 s</option>
+            <option value="60000" selected>60 s</option>
+            <option value="180000">3 min</option>
+            <option value="300000">5 min</option>
+            <option value="600000">10 min</option>
+            <option value="1800000">30 min</option>
+            <option value="3600000">60 min</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="status" id="weather-status" hidden></div>
+
+      <div class="weather-grid">
+        <div class="sensor-block">
+          <div class="block-header">
+            <div>
+              <h3>Temperature & Humidity</h3>
+              <p class="block-sub">Sensor: <span id="sensor-sht31-status" class="sensor-state">—</span></p>
+            </div>
+          </div>
+          <div class="weather-tiles">
+            <article class="weather-tile temperature">
+              <h3 class="tile-title">Temperature</h3>
+              <div class="metric-pair">
+                <div class="metric-line">
+                  <span class="metric-label indoor">Indoor</span>
+                  <span class="weather-value compact"><span id="weather-temp-indoor">—</span><span class="unit">°C</span></span>
+                  <span class="metric-sub" id="weather-temp-f-indoor">— °F</span>
+                </div>
+                <div class="metric-line">
+                  <span class="metric-label outdoor" data-metric="temp">Outdoor</span>
+                  <span class="weather-value compact"><span id="weather-temp-outdoor">—</span><span class="unit">°C</span></span>
+                  <span class="metric-sub" id="weather-temp-f-outdoor">— °F</span>
+                </div>
+              </div>
+              <p class="weather-sub">Dew point <span id="weather-dewpoint">—</span> °C</p>
+            </article>
+
+            <article class="weather-tile humidity">
+              <h3 class="tile-title">Humidity</h3>
+              <div class="metric-pair">
+                <div class="metric-line">
+                  <span class="metric-label indoor">Indoor</span>
+                  <span class="weather-value compact"><span id="weather-humidity-indoor">—</span><span class="unit">%</span></span>
+                </div>
+                <div class="metric-line">
+                  <span class="metric-label outdoor" data-metric="humidity">Outdoor</span>
+                  <span class="weather-value compact"><span id="weather-humidity-outdoor">—</span><span class="unit">%</span></span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="sensor-block">
+          <div class="block-header">
+            <div>
+              <h3>Pressure & Altitude</h3>
+              <p class="block-sub">Sensor: <span id="sensor-bmp580-status" class="sensor-state">—</span></p>
+            </div>
+          </div>
+          <div class="weather-tiles">
+            <article class="weather-tile pressure">
+              <h3 class="tile-title">Pressure</h3>
+              <div class="metric-pair">
+                <div class="metric-line">
+                  <span class="metric-label indoor">Indoor</span>
+                  <span class="weather-value compact"><span id="weather-pressure-indoor">—</span><span class="unit">mmHg</span></span>
+                  <span class="metric-sub" id="weather-pressure-hpa-indoor">— hPa</span>
+                </div>
+                <div class="metric-line">
+                  <span class="metric-label outdoor" data-metric="pressure">Outdoor</span>
+                  <span class="weather-value compact"><span id="weather-pressure-outdoor">—</span><span class="unit">mmHg</span></span>
+                  <span class="metric-sub" id="weather-pressure-hpa-outdoor">— hPa</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="weather-tile altitude">
+              <h3 class="tile-title">Altitude</h3>
+              <div class="metric-pair">
+                <div class="metric-line">
+                  <span class="metric-label indoor">Indoor</span>
+                  <span class="weather-value compact"><span id="weather-altitude-indoor">—</span><span class="unit">m</span></span>
+                  <span class="metric-sub" id="weather-altitude-ft-indoor">— ft</span>
+                </div>
+                <div class="metric-line">
+                  <span class="metric-label outdoor">Outdoor</span>
+                  <span class="weather-value compact"><span id="weather-altitude-outdoor">—</span><span class="unit">m</span></span>
+                  <span class="metric-sub" id="weather-altitude-ft-outdoor">— ft</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="weather-chart-card">
+          <header>
+            <h3>Temperature & Humidity</h3>
+            <p>Tracked across the past 24 hours.</p>
+          </header>
+          <canvas id="weather-chart" class="trend-canvas"></canvas>
+          <div class="chart-legend">
+            <span class="legend-item temp-in" data-series="tempIn">Temp indoor</span>
+            <span class="legend-item temp-out" data-series="tempOut">Temp outdoor</span>
+            <span class="legend-item humidity-in" data-series="humIn">Hum indoor</span>
+            <span class="legend-item humidity-out" data-series="humOut">Hum outdoor</span>
+          </div>
+          <p class="weather-updated">Last updated <span id="weather-updated">—</span></p>
+        </div>
+
+        <div class="weather-chart-card pressure-card">
+          <header>
+            <h3>Pressure</h3>
+            <p>24-hour barometric trend.</p>
+          </header>
+          <canvas id="pressure-chart" class="trend-canvas"></canvas>
+          <div class="chart-legend">
+            <span class="legend-item pressure-in" data-series="pressIn">Pressure indoor</span>
+            <span class="legend-item pressure-out" data-series="pressOut">Pressure outdoor</span>
+          </div>
+        </div>
+
+        <div class="forecast-block">
+          <header class="forecast-header">
+            <div>
+              <h3>Outdoor Outlook</h3>
+              <p class="subtitle">Snapshots for the next 1, 3, 6, 12, 24, 48, 72, and 96 hours.</p>
+            </div>
+            <div class="forecast-updated" id="forecast-updated">—</div>
+          </header>
+          <div class="forecast-grid" id="forecast-grid">
+            <article class="forecast-card" data-horizon="1">
+              <div class="forecast-horizon">+1h</div>
+              <div class="forecast-metrics">
+                <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-1">—</span></div>
+                <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-1">—</span></div>
+                <div><span class="metric-label small pressure">Press</span><span class="forecast-value" id="forecast-pres-1">—</span></div>
+              </div>
+            </article>
+            <article class="forecast-card" data-horizon="3">
+              <div class="forecast-horizon">+3h</div>
+              <div class="forecast-metrics">
+                <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-3">—</span></div>
+                <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-3">—</span></div>
+                <div><span class="metric-label small pressure">Press</span><span class="forecast-value" id="forecast-pres-3">—</span></div>
+              </div>
+            </article>
+            <article class="forecast-card" data-horizon="6">
+              <div class="forecast-horizon">+6h</div>
+              <div class="forecast-metrics">
+                <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-6">—</span></div>
+                <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-6">—</span></div>
+                <div><span class="metric-label small pressure">Press</span><span class="forecast-value" id="forecast-pres-6">—</span></div>
+              </div>
+            </article>
+            <article class="forecast-card" data-horizon="12">
+              <div class="forecast-horizon">+12h</div>
+              <div class="forecast-metrics">
+                <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-12">—</span></div>
+                <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-12">—</span></div>
+                <div><span class="metric-label small pressure">Press</span><span class="forecast-value" id="forecast-pres-12">—</span></div>
+              </div>
+            </article>
+            <article class="forecast-card" data-horizon="24">
+              <div class="forecast-horizon">+24h</div>
+              <div class="forecast-metrics">
+                <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-24">—</span></div>
+                <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-24">—</span></div>
+                <div><span class="metric-label small pressure">Press</span><span class="forecast-value" id="forecast-pres-24">—</span></div>
+              </div>
+            </article>
+            <article class="forecast-card" data-horizon="48">
+              <div class="forecast-horizon">+48h</div>
+              <div class="forecast-metrics">
+                <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-48">—</span></div>
+                <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-48">—</span></div>
+                <div><span class="metric-label small pressure">Press</span><span class="forecast-value" id="forecast-pres-48">—</span></div>
+              </div>
+            </article>
+            <article class="forecast-card" data-horizon="72">
+              <div class="forecast-horizon">+72h</div>
+              <div class="forecast-metrics">
+                <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-72">—</span></div>
+                <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-72">—</span></div>
+                <div><span class="metric-label small pressure">Press</span><span class="forecast-value" id="forecast-pres-72">—</span></div>
+              </div>
+            </article>
+            <article class="forecast-card" data-horizon="96">
+              <div class="forecast-horizon">+96h</div>
+              <div class="forecast-metrics">
+                <div><span class="metric-label small temp">Temp</span><span class="forecast-value" id="forecast-temp-96">—</span></div>
+                <div><span class="metric-label small humidity">Hum</span><span class="forecast-value" id="forecast-hum-96">—</span></div>
+                <div><span class="metric-label small pressure">Press</span><span class="forecast-value" id="forecast-pres-96">—</span></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section class="resource-section">
+    <div class="resource-header">
+      <div>
+        <h2>Device Resources</h2>
+        <p class="subtitle">Live ESP32 health: memory, flash, CPU, uptime.</p>
+      </div>
+      <div class="resource-updated" id="resources-updated">—</div>
+    </div>
+    <div class="resource-grid">
+      <article class="resource-card">
+        <div class="resource-label">Uptime</div>
+        <div class="resource-value" id="res-uptime">—</div>
+      </article>
+      <article class="resource-card">
+        <div class="resource-label">Heap free / min / max / used%</div>
+        <div class="resource-value" id="res-heap">—</div>
+      </article>
+      <article class="resource-card">
+        <div class="resource-label">PSRAM free / min / max / used%</div>
+        <div class="resource-value" id="res-psram">—</div>
+      </article>
+      <article class="resource-card">
+        <div class="resource-label">Flash (LittleFS)</div>
+        <div class="resource-value" id="res-fs">—</div>
+      </article>
+      <article class="resource-card">
+        <div class="resource-label">CPU freq / SDK / Rev</div>
+        <div class="resource-value" id="res-cpu">—</div>
+      </article>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    <div class="service-actions">
+      <div class="action-card">
+        <a href="/setup/wifi.html" class="button-link">Open Wi-Fi manager</a>
+        <p class="action-desc">Configure or change Wi-Fi credentials, scan for networks, and switch between AP/STA modes.</p>
+      </div>
+      <div class="action-card">
+        <a href="/setup/ota.html" class="button-link secondary">Open OTA portal</a>
+        <p class="action-desc">Upload new firmware images over Wi-Fi. Use the FS upload endpoint for web assets.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div id="outdoor-modal" class="modal" hidden>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Outdoor Weather Setup</h3>
+      </div>
+      <div class="modal-body">
+        <label class="field-label" for="outdoor-provider">Weather provider</label>
+        <select id="outdoor-provider">
+          <option value="open-meteo" selected>Open-Meteo (no key)</option>
+          <option value="metno">MET Norway (no key)</option>
+          <option value="weatherapi">WeatherAPI (key required)</option>
+        </select>
+
+        <div id="city-selectors">
+          <label class="field-label" for="outdoor-search">Search city</label>
+          <input id="outdoor-search" type="text" placeholder="Start typing to search" autocomplete="off" />
+          <div class="search-hint" id="outdoor-search-status">Type 2+ letters to search.</div>
+          <div class="search-results" id="outdoor-search-results"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="button-link secondary" id="outdoor-cancel">Cancel</button>
+        <button class="button-link" id="outdoor-save">Save</button>
+      </div>
+    </div>
+  </div>
+  <script src="/service/main.js" defer></script>
+</body>
+</html>

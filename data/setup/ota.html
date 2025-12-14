@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OTA Update</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/setup/setup.css" />
+</head>
+<body data-page="ota">
+  <main>
+    <header>
+      <h1>Firmware Update</h1>
+      <p>Upload a new firmware package (<code>.bin</code>) to flash the device over the air.</p>
+    </header>
+
+    <section>
+      <h2>Upload package</h2>
+      <form id="ota-form">
+        <div class="form-grid">
+          <label>
+            Firmware file
+            <input type="file" id="ota-file" accept=".bin" required />
+          </label>
+        </div>
+        <progress id="ota-progress" value="0" max="100" hidden></progress>
+        <div class="status" id="ota-status" hidden></div>
+        <div class="link-row">
+          <button type="submit">Start update</button>
+          <a href="/setup/wifi.html" class="button-link secondary">Back to Wi-Fi</a>
+          <a href="/service/main.html" class="button-link secondary">Service home</a>
+        </div>
+      </form>
+    </section>
+  </main>
+  <script src="/setup/setup.js" defer></script>
+</body>
+</html>

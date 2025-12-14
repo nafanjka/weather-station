@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wi-Fi Manager</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/setup/setup.css" />
+</head>
+<body data-page="wifi">
+  <main>
+    <header>
+      <h1>Network Manager</h1>
+      <p id="wifi-subtitle">Checking connection…</p>
+    </header>
+
+    <section class="service-entry">
+      <div class="service-entry-inner">
+        <div class="service-entry-copy">
+          <p class="service-entry-label">Main service</p>
+          <h2>Your device experience lives here</h2>
+          <p>Jump to the primary service portal to access the features tailored for this device.</p>
+        </div>
+        <a href="/service/main.html" class="button-link service-entry-action">Open service portal</a>
+      </div>
+    </section>
+
+    <section>
+      <h2>Status</h2>
+      <div class="status" id="wifi-status" hidden></div>
+      <div class="form-grid">
+        <div>
+          <strong>Mode</strong>
+          <p id="wifi-mode">—</p>
+        </div>
+        <div>
+          <strong>Connected SSID</strong>
+          <p id="wifi-ssid">—</p>
+        </div>
+        <div>
+          <strong>IP address</strong>
+          <p id="wifi-ip">—</p>
+        </div>
+        <div>
+          <strong>MAC address</strong>
+          <p id="wifi-mac">—</p>
+        </div>
+        <div>
+          <strong>Signal strength</strong>
+          <p id="wifi-signal">—</p>
+        </div>
+        <div>
+          <strong>Access point</strong>
+          <p id="wifi-ap">—</p>
+        </div>
+      </div>
+      <div class="link-row">
+        <button type="button" id="scan-button">Scan networks</button>
+        <button type="button" class="secondary" id="refresh-button">Refresh status</button>
+        <button type="button" class="secondary" id="forget-button">Forget saved Wi-Fi</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Device name</h2>
+      <p>Set the host name this device uses on your network.</p>
+      <form id="hostname-form">
+        <div class="form-grid">
+          <label>
+            Host name
+            <input type="text" id="host-name" autocomplete="off" placeholder="esp-weather-abc123" />
+          </label>
+        </div>
+        <div class="status" id="hostname-status" hidden></div>
+        <div class="link-row">
+          <button type="submit">Save host name</button>
+        </div>
+      </form>
+    </section>
+
+    <section>
+      <h2>Available Networks</h2>
+      <p id="scan-hint">Press “Scan networks” to discover nearby Wi-Fi.</p>
+      <div class="list" id="network-list"></div>
+    </section>
+
+    <section>
+      <h2>Connect Manually</h2>
+      <form id="connect-form">
+        <div class="form-grid">
+          <label>
+            SSID
+            <input type="text" id="connect-ssid" autocomplete="off" required />
+          </label>
+          <label>
+            Password
+            <input type="password" id="connect-pass" autocomplete="off" />
+          </label>
+        </div>
+        <div class="status" id="connect-status" hidden></div>
+        <div class="link-row">
+          <button type="submit">Save &amp; connect</button>
+        </div>
+      </form>
+    </section>
+
+    <section>
+      <h2>Firmware update</h2>
+      <p>Upload new builds without wires via the OTA dashboard.</p>
+      <a href="/setup/ota.html" class="button-link">Open OTA portal</a>
+    </section>
+
+    <section id="mqtt-section">
+      <h2>MQTT &amp; Home Assistant</h2>
+      <div class="mqtt-header-row">
+        <p>Configure MQTT broker credentials and optional Home Assistant auto-discovery.</p>
+        <div class="mqtt-indicator" id="mqtt-indicator" hidden>
+          <span class="status-dot" id="mqtt-conn-dot"></span>
+          <span class="status-label" id="mqtt-conn-label">MQTT status unknown</span>
+        </div>
+      </div>
+      <div class="status" id="mqtt-status" hidden></div>
+      <form id="mqtt-form">
+        <div class="toggle-row mqtt-toggle-row">
+          <div class="switch-row">
+            <span>Enable MQTT</span>
+            <label class="switch">
+              <input type="checkbox" id="mqtt-enabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="switch-row">
+            <span>HA Discovery</span>
+            <label class="switch">
+              <input type="checkbox" id="mqtt-ha" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="switch-row">
+            <span>Publish interval</span>
+            <select id="mqtt-interval">
+              <option value="5000">5 s</option>
+              <option value="10000">10 s</option>
+              <option value="30000" selected>30 s</option>
+              <option value="60000">1 min</option>
+              <option value="300000">5 min</option>
+              <option value="600000">10 min</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid mqtt-grid">
+          <label>
+            Broker host
+            <input type="text" id="mqtt-host" placeholder="e.g. 192.168.1.10" />
+          </label>
+          <label>
+            Port
+            <input type="number" id="mqtt-port" min="1" max="65535" value="1883" />
+          </label>
+          <label>
+            Username
+            <input type="text" id="mqtt-username" autocomplete="off" />
+          </label>
+          <label>
+            Password
+            <input type="password" id="mqtt-password" autocomplete="off" />
+          </label>
+          <label>
+            Base topic
+            <input type="text" id="mqtt-base" placeholder="homeassistant/weatherstation" />
+          </label>
+          <label>
+            Device name
+            <input type="text" id="mqtt-name" placeholder="ESP Weather Station" />
+          </label>
+        </div>
+        <div class="link-row">
+          <button type="submit">Save MQTT settings</button>
+          <button type="button" class="secondary" id="mqtt-refresh">Refresh</button>
+        </div>
+      </form>
+    </section>
+  </main>
+  <script src="/setup/setup.js" defer></script>
+</body>
+</html>

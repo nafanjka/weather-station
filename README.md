@@ -1,0 +1,54 @@
+# ESP32 Weather + MQTT Node
+
+ESP32 firmware that serves a web UI from LittleFS, publishes indoor metrics to MQTT/Home Assistant, caches outdoor weather pushed from a host/UI, and supports OTA updates. Auto-fetch of outdoor weather is disabled to avoid hangs; outdoor data is injected via the cache endpoint.
+
+## Highlights
+- Managed Wi-Fi portal with STA/AP fallback and retry.
+- LittleFS-backed service UI (`/service/main.html`) plus setup pages.
+- OTA firmware upload at `/api/ota/upload` or `/setup/ota.html`.
+- Indoor sensing via SHT31/BMP580 with dew point, altitude, pressures, and system/network stats.
+- Outdoor cache support: host/UI POSTs data, MQTT and HTTP expose it; fetch is disabled on-device.
+- MQTT telemetry + HA discovery, including outdoor metrics and top-level city/country/lat/lon, plus separate city/country text entities.
+- Async stack: ESPAsyncWebServer, AsyncTCP, ArduinoJson v7, PubSubClient.
+
+## Build & Upload
+1. Install [PlatformIO](https://platformio.org/) and open this folder in VS Code.
+2. Build firmware: `pio run`
+3. Flash over USB: `pio run -t upload -e esp32dev --upload-port /dev/tty.usbserial-130` (adjust port as needed).
+4. Upload static assets (if changed): `pio run -t uploadfs`
+5. OTA alternative: `curl -F firmware=@.pio/build/esp32dev/firmware.bin http://<device>/api/ota/upload`
+
+On first boot the board exposes an AP `ESPPortal-XXXXXX`. Visit `http://192.168.4.1/` to set Wi-Fi or use the OTA page. Once connected to Wi-Fi, the service UI is at `/service/main.html` and OTA remains available.
+
+## Runtime Behaviour
+- STA connect attempts for 60 s; falls back to AP if no link, retries periodically when credentials exist.
+- Root routes redirect to the service UI; setup/OTA/Wi-Fi pages remain reachable.
+- Outdoor auto-fetch is disabled; cache must be pushed by a host/UI.
+
+## HTTP APIs
+- `GET /api/system/resources` – uptime, heap/PSRAM, FS stats, CPU info.
+- `GET /api/weather/metrics` – indoor readings (temp, humidity, dew point, pressure, altitude) and sensor status.
+- `GET /api/outdoor/config` – outdoor config and last fetch/attempt metadata.
+- `POST /api/outdoor/config` – save outdoor location `{enabled,lat,lon,city,country}`.
+- `GET /api/outdoor/forecast` – current cached outdoor data and outlook; non-blocking.
+- `POST /api/outdoor/cache` – push outdoor cache `{current:{...}, outlook:{h1:{...},...}, fetchedAtMs?}`.
+- `POST /api/ota/upload` – upload firmware `.bin` (reboots on success).
+- Wi-Fi setup endpoints live under `/api/wifi/*` and serve the portal; see `SetupRoutes` for details.
+
+## MQTT / Home Assistant
+- Base topic: `homeassistant/weatherstation` (configurable). Telemetry on `<base>/telemetry`, status on `<base>/status`.
+- HA discovery publishes indoor metrics, system/network stats, outdoor metrics, and forecast horizons (1h–96h).
+- Location surfaced both as top-level fields (`city`, `country`, `lat`, `lon`, plus `outdoorCity/OutdoorCountry/Lat/Lon`) and dedicated text entities `location_city` and `location_country`.
+
+## Outdoor Data Flow
+- Device does NOT fetch from the internet. Push data to `POST /api/outdoor/cache` (e.g., from your server/UI after calling an external API). Cached data is then served via `/api/outdoor/forecast` and published over MQTT.
+
+## Notes / Limits
+- LED matrix and clock services are not yet included; flash/RAM headroom is sufficient to add them later.
+- Keep WS2812 brightness capped and use a dedicated 5 V supply if you add the matrix.
+
+## Quick Curl Examples
+- Push outdoor cache:
+	`curl -H "Content-Type: application/json" --data @outdoor.json http://<device>/api/outdoor/cache`
+- Read forecast:
+	`curl http://<device>/api/outdoor/forecast`
