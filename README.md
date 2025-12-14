@@ -10,6 +10,26 @@ ESP32 firmware that serves a web UI from LittleFS, publishes indoor metrics to M
 - Outdoor cache support: host/UI POSTs data, MQTT and HTTP expose it; fetch is disabled on-device.
 - MQTT telemetry + HA discovery, including outdoor metrics and top-level city/country/lat/lon, plus separate city/country text entities.
 - Async stack: ESPAsyncWebServer, AsyncTCP, ArduinoJson v7, PubSubClient.
+- Modern web UI with animated sky icons, forecast snapshots, and a configurable clock banner.
+
+## Web UI Overview (`/service/main.html`)
+- **Weather tiles**: Indoor/outdoor temperature, humidity (with wind), pressure, altitude, dew point, and live status of SHT31/BMP580 sensors.
+- **Clock banner**: Toggleable clock with optional seconds/milliseconds, selectable font, 12/24h format, auto/manual timezone, and NTP pool list (for display/metadata).
+- **Charts**: 24h temperature/humidity and pressure charts with click-to-open 7-day history modal; legend toggles persist; humidity axis labels removed per UX choice.
+- **Forecast**: 1–96h outlook cards with condition icons and core metrics.
+- **Resources**: Uptime, heap/PSRAM, FS usage, CPU percent.
+
+## Clock & Time Setup (Weather modal)
+- **Enable clock**: Show/hide banner.
+- **Timezone**: Auto from selected city or manual TZ string (IANA, e.g., `Europe/Prague`).
+- **Format**: 12h/24h toggle (rendering adapts silently; badge hidden on banner).
+- **Details**: Show seconds, milliseconds, date, timezone label.
+- **Font**: Dropdown includes system default plus Inter, Montserrat, Poppins, Fira Code, and casual options (Comic Sans, Marker Felt, Snell Roundhand).
+- **NTP pools & sync interval**: Stored in UI for display/metadata; device-side NTP handling can be hooked to these if desired.
+
+## Outdoor Data Flow
+- Device does **not** call internet weather APIs. Push data to `POST /api/outdoor/cache` (e.g., from your server/UI after calling an external API). Cached data is served via `/api/outdoor/forecast` and published over MQTT.
+- The setup modal saves city/country/lat/lon/timezone to `/api/outdoor/config`; timezone is used for the clock when in “Use selected city” mode.
 
 ## Build & Upload
 1. Install [PlatformIO](https://platformio.org/) and open this folder in VS Code.
@@ -52,7 +72,7 @@ On first boot the board exposes an AP `ESPPortal-XXXXXX`. Visit `http://192.168.
 - Device does NOT fetch from the internet. Push data to `POST /api/outdoor/cache` (e.g., from your server/UI after calling an external API). Cached data is then served via `/api/outdoor/forecast` and published over MQTT.
 
 ## Notes / Limits
-- LED matrix and clock services are not yet included; flash/RAM headroom is sufficient to add them later.
+- LED matrix rendering is not included; clock is UI-side only (no physical display yet). Flash/RAM headroom leaves room to add it.
 - Keep WS2812 brightness capped and use a dedicated 5 V supply if you add the matrix.
 
 ## Quick Curl Examples
