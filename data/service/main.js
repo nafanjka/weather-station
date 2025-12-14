@@ -41,13 +41,19 @@ const selectors = {
   resPsram: () => document.getElementById("res-psram"),
   resFs: () => document.getElementById("res-fs"),
   resCpu: () => document.getElementById("res-cpu"),
+  historyModal: () => document.getElementById("history-modal"),
+  historyClose: () => document.getElementById("history-close"),
+  historyBackdrop: () => document.getElementById("history-backdrop"),
+  historyTempChart: () => document.getElementById("history-weather-chart"),
+  historyPressureChart: () => document.getElementById("history-pressure-chart"),
 };
 
 const weatherState = {
   intervalMs: 60000,
   timer: 0,
   history: [],
-  maxAgeMs: 24 * 60 * 60 * 1000,
+  maxAgeMs: 7 * 24 * 60 * 60 * 1000, // retain one week in storage
+  historyCap: 7000,
   lastFetch: 0,
   lastPayload: null,
 };
@@ -75,8 +81,10 @@ const forecastState = {
 };
 
 const chartMeta = {
-  weather: null,
-  pressure: null,
+  weatherMain: null,
+  pressureMain: null,
+  weatherWeek: null,
+  pressureWeek: null,
 };
 
 const chartVisibility = {
@@ -98,7 +106,7 @@ function loadWeatherHistory() {
     weatherState.history = parsed
       .filter((entry) => Number.isFinite(entry?.timestamp) && entry.timestamp >= cutoff)
       .sort((a, b) => a.timestamp - b.timestamp)
-      .slice(-2000);
+      .slice(-weatherState.historyCap);
     saveWeatherHistory();
   } catch (_) {
     /* ignore */
@@ -111,6 +119,11 @@ function saveWeatherHistory() {
   } catch (_) {
     /* ignore */
   }
+}
+
+function historyWindow(hours) {
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  return weatherState.history.filter((entry) => Number.isFinite(entry.timestamp) && entry.timestamp >= cutoff);
 }
 
 function loadChartVisibility() {
@@ -136,6 +149,8 @@ function saveChartVisibility() {
 const tooltipState = {
   hideTimer: null,
 };
+
+let historyTooltipsAttached = false;
 
 async function fetchJSON(url, options = {}) {
   const response = await fetch(url, options);
@@ -618,11 +633,19 @@ function pushWeatherHistory(payload, timestamp) {
   while (weatherState.history.length && weatherState.history[0].timestamp < cutoff) {
     weatherState.history.shift();
   }
+  if (weatherState.history.length > weatherState.historyCap) {
+    weatherState.history = weatherState.history.slice(-weatherState.historyCap);
+  }
   saveWeatherHistory();
 }
 
-function renderWeatherChart() {
-  const canvas = selectors.weatherChart();
+function renderWeatherChart(options = {}) {
+  const {
+    canvas = selectors.weatherChart(),
+    history = historyWindow(24),
+    metaKey = "weatherMain",
+    emptyLabel = "Collecting 24-hour history…",
+  } = options;
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -637,17 +660,17 @@ function renderWeatherChart() {
 
   ctx.clearRect(0, 0, width, height);
 
-  const history = weatherState.history.length === 1
-    ? [...weatherState.history, { ...weatherState.history[0], timestamp: weatherState.history[0].timestamp + 60 * 1000 }]
-    : weatherState.history;
+  const normalizedHistory = history.length === 1
+    ? [...history, { ...history[0], timestamp: history[0].timestamp + 60 * 1000 }]
+    : history;
 
-  if (!history.length) {
-    chartMeta.weather = null;
+  if (!normalizedHistory.length) {
+    chartMeta[metaKey] = null;
     ctx.fillStyle = "rgba(148, 163, 184, 0.7)";
     ctx.font = `${14 * dpr}px "Segoe UI", sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("Collecting 24-hour history…", width / 2, height / 2);
+    ctx.fillText(emptyLabel, width / 2, height / 2);
     return;
   }
 
@@ -662,10 +685,10 @@ function renderWeatherChart() {
   const chartHeight = height - margin.top - margin.bottom;
   if (chartWidth <= 0 || chartHeight <= 0) return;
 
-  const tempsIn = chartVisibility.tempIn ? history.filter((entry) => Number.isFinite(entry.temperatureC)) : [];
-  const tempsOut = chartVisibility.tempOut ? history.filter((entry) => Number.isFinite(entry.temperatureOutC)) : [];
-  const humsIn = chartVisibility.humIn ? history.filter((entry) => Number.isFinite(entry.humidity)) : [];
-  const humsOut = chartVisibility.humOut ? history.filter((entry) => Number.isFinite(entry.humidityOut)) : [];
+  const tempsIn = chartVisibility.tempIn ? normalizedHistory.filter((entry) => Number.isFinite(entry.temperatureC)) : [];
+  const tempsOut = chartVisibility.tempOut ? normalizedHistory.filter((entry) => Number.isFinite(entry.temperatureOutC)) : [];
+  const humsIn = chartVisibility.humIn ? normalizedHistory.filter((entry) => Number.isFinite(entry.humidity)) : [];
+  const humsOut = chartVisibility.humOut ? normalizedHistory.filter((entry) => Number.isFinite(entry.humidityOut)) : [];
 
   const hasTempIn = chartVisibility.tempIn && tempsIn.length >= 2;
   const hasTempOut = chartVisibility.tempOut && tempsOut.length >= 2;
@@ -675,7 +698,7 @@ function renderWeatherChart() {
   const hasHumSeries = hasHumIn || hasHumOut;
 
   if (!hasTempSeries && !hasHumSeries) {
-    chartMeta.weather = null;
+    chartMeta[metaKey] = null;
     ctx.fillStyle = "rgba(148, 163, 184, 0.7)";
     ctx.font = `${14 * dpr}px "Segoe UI", sans-serif`;
     ctx.textAlign = "center";
@@ -694,8 +717,8 @@ function renderWeatherChart() {
   const humMax = humValues.length ? Math.max(...humValues, 100) : 100;
   const humRange = humMax - humMin || 1;
 
-  const firstTs = history[0].timestamp;
-  const lastTs = history[history.length - 1].timestamp;
+  const firstTs = normalizedHistory[0].timestamp;
+  const lastTs = normalizedHistory[normalizedHistory.length - 1].timestamp;
   const domain = Math.max(1, lastTs - firstTs);
 
   ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
@@ -761,15 +784,15 @@ function renderWeatherChart() {
     if (started) ctx.stroke();
   };
 
-  if (chartVisibility.tempIn) drawSeries(history, (e) => e.temperatureC, projectTempY, colors.tempIn, false);
-  if (chartVisibility.tempOut) drawSeries(history, (e) => e.temperatureOutC, projectTempY, colors.tempOut, true);
-  if (chartVisibility.humIn) drawSeries(history, (e) => e.humidity, projectHumY, colors.humIn, false);
-  if (chartVisibility.humOut) drawSeries(history, (e) => e.humidityOut, projectHumY, colors.humOut, true);
+  if (chartVisibility.tempIn) drawSeries(normalizedHistory, (e) => e.temperatureC, projectTempY, colors.tempIn, false);
+  if (chartVisibility.tempOut) drawSeries(normalizedHistory, (e) => e.temperatureOutC, projectTempY, colors.tempOut, true);
+  if (chartVisibility.humIn) drawSeries(normalizedHistory, (e) => e.humidity, projectHumY, colors.humIn, false);
+  if (chartVisibility.humOut) drawSeries(normalizedHistory, (e) => e.humidityOut, projectHumY, colors.humOut, true);
 
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillStyle = "rgba(148, 163, 184, 0.75)";
-  const tickCount = Math.min(3, history.length);
+  const tickCount = Math.min(3, normalizedHistory.length);
   const includeSeconds = domain < 6 * 60 * 60 * 1000;
   const labelOptions = includeSeconds
     ? { hour: "2-digit", minute: "2-digit", second: "2-digit" }
@@ -782,7 +805,7 @@ function renderWeatherChart() {
     ctx.fillText(label, x, height - margin.bottom + 10 * dpr);
   }
 
-  chartMeta.weather = {
+  chartMeta[metaKey] = {
     firstTs,
     lastTs,
     margin,
@@ -798,11 +821,18 @@ function renderWeatherChart() {
     colors,
     width,
     height,
+    history: normalizedHistory,
+    canvas,
   };
 }
 
-function renderPressureChart() {
-  const canvas = selectors.pressureChart();
+function renderPressureChart(options = {}) {
+  const {
+    canvas = selectors.pressureChart(),
+    history = historyWindow(24),
+    metaKey = "pressureMain",
+    emptyLabel = "Collecting pressure history…",
+  } = options;
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -817,21 +847,21 @@ function renderPressureChart() {
 
   ctx.clearRect(0, 0, width, height);
 
-  const history = weatherState.history.length === 1
-    ? [...weatherState.history, { ...weatherState.history[0], timestamp: weatherState.history[0].timestamp + 60 * 1000 }]
-    : weatherState.history;
+  const normalizedHistory = history.length === 1
+    ? [...history, { ...history[0], timestamp: history[0].timestamp + 60 * 1000 }]
+    : history;
 
-  const seriesIn = history.filter((entry) => Number.isFinite(entry.pressureMmHg));
-  const seriesOut = history.filter((entry) => Number.isFinite(entry.pressureOutMmHg));
+  const seriesIn = normalizedHistory.filter((entry) => Number.isFinite(entry.pressureMmHg));
+  const seriesOut = normalizedHistory.filter((entry) => Number.isFinite(entry.pressureOutMmHg));
   const hasIn = chartVisibility.pressIn && seriesIn.length >= 2;
   const hasOut = chartVisibility.pressOut && seriesOut.length >= 2;
   if (!hasIn && !hasOut) {
-    chartMeta.pressure = null;
+    chartMeta[metaKey] = null;
     ctx.fillStyle = "rgba(148, 163, 184, 0.7)";
     ctx.font = `${14 * dpr}px "Segoe UI", sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("Collecting pressure history…", width / 2, height / 2);
+    ctx.fillText(emptyLabel, width / 2, height / 2);
     return;
   }
 
@@ -857,8 +887,8 @@ function renderPressureChart() {
   const rangeMax = max + pad;
   const range = rangeMax - rangeMin || 1;
 
-  const firstTs = history[0].timestamp;
-  const lastTs = history[history.length - 1].timestamp;
+  const firstTs = normalizedHistory[0].timestamp;
+  const lastTs = normalizedHistory[normalizedHistory.length - 1].timestamp;
   const domain = Math.max(1, lastTs - firstTs);
 
   const projectX = (ts) => margin.left + ((ts - firstTs) / domain) * chartWidth;
@@ -913,8 +943,8 @@ function renderPressureChart() {
     if (started) ctx.stroke();
   };
 
-  if (chartVisibility.pressIn) drawSeries(history, (e) => e.pressureMmHg, colors.pressureIn, false);
-  if (chartVisibility.pressOut) drawSeries(history, (e) => e.pressureOutMmHg, colors.pressureOut, true);
+  if (chartVisibility.pressIn) drawSeries(normalizedHistory, (e) => e.pressureMmHg, colors.pressureIn, false);
+  if (chartVisibility.pressOut) drawSeries(normalizedHistory, (e) => e.pressureOutMmHg, colors.pressureOut, true);
 
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
@@ -923,7 +953,7 @@ function renderPressureChart() {
   const labelOptions = includeSeconds
     ? { hour: "2-digit", minute: "2-digit", second: "2-digit" }
     : { hour: "2-digit", minute: "2-digit" };
-  const maxTicks = Math.min(3, history.length);
+  const maxTicks = Math.min(3, normalizedHistory.length);
   for (let i = 0; i < maxTicks; i += 1) {
     const ratio = i / Math.max(1, maxTicks - 1);
     const ts = firstTs + ratio * domain;
@@ -932,7 +962,7 @@ function renderPressureChart() {
     ctx.fillText(label, x, height - margin.bottom + 8 * dpr);
   }
 
-  chartMeta.pressure = {
+  chartMeta[metaKey] = {
     firstTs,
     lastTs,
     margin,
@@ -944,13 +974,15 @@ function renderPressureChart() {
     colors,
     width,
     height,
+    history: normalizedHistory,
+    canvas,
   };
 }
 
-function nearestHistoryEntry(ts, predicate) {
+function nearestHistoryEntry(ts, history, predicate) {
   let best = null;
   let bestDelta = Number.POSITIVE_INFINITY;
-  for (const entry of weatherState.history) {
+  for (const entry of history) {
     if (!predicate(entry)) continue;
     const delta = Math.abs(entry.timestamp - ts);
     if (delta < bestDelta) {
@@ -1005,11 +1037,11 @@ function scheduleHideTooltip(tip) {
   tooltipState.hideTimer = setTimeout(() => hideTooltip(tip), 3000);
 }
 
-function handleWeatherTooltip(event) {
-  const canvas = selectors.weatherChart();
-  if (!canvas) return;
-  const meta = chartMeta.weather;
+function buildWeatherTooltip(event, metaKey) {
+  const meta = chartMeta[metaKey];
   if (!meta || (!meta.hasTempSeries && !meta.hasHumSeries)) return;
+  const canvas = meta.canvas;
+  if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
   const tip = ensureTooltip(canvas);
   if (!tip) return;
@@ -1020,7 +1052,7 @@ function handleWeatherTooltip(event) {
   const xClamped = Math.min(Math.max(xDraw - meta.margin.left, 0), meta.chartWidth);
   const ts = meta.firstTs + (xClamped / Math.max(1, meta.chartWidth)) * domain;
 
-  const entry = nearestHistoryEntry(ts, (e) => (
+  const entry = nearestHistoryEntry(ts, meta.history || [], (e) => (
     (chartVisibility.tempIn && Number.isFinite(e.temperatureC)) ||
     (chartVisibility.tempOut && Number.isFinite(e.temperatureOutC)) ||
     (chartVisibility.humIn && Number.isFinite(e.humidity)) ||
@@ -1054,11 +1086,11 @@ function handleWeatherTooltip(event) {
   scheduleHideTooltip(tip);
 }
 
-function handlePressureTooltip(event) {
-  const canvas = selectors.pressureChart();
-  if (!canvas) return;
-  const meta = chartMeta.pressure;
+function buildPressureTooltip(event, metaKey) {
+  const meta = chartMeta[metaKey];
   if (!meta) return;
+  const canvas = meta.canvas;
+  if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
   const tip = ensureTooltip(canvas);
   if (!tip) return;
@@ -1069,7 +1101,7 @@ function handlePressureTooltip(event) {
   const xClamped = Math.min(Math.max(xDraw - meta.margin.left, 0), meta.chartWidth);
   const ts = meta.firstTs + (xClamped / Math.max(1, meta.chartWidth)) * domain;
 
-  const entry = nearestHistoryEntry(ts, (e) => (
+  const entry = nearestHistoryEntry(ts, meta.history || [], (e) => (
     (chartVisibility.pressIn && Number.isFinite(e.pressureMmHg)) ||
     (chartVisibility.pressOut && Number.isFinite(e.pressureOutMmHg))
   ));
@@ -1095,21 +1127,45 @@ function handlePressureTooltip(event) {
   scheduleHideTooltip(tip);
 }
 
-function attachChartTooltips() {
-  const weatherCanvas = selectors.weatherChart();
-  const pressureCanvas = selectors.pressureChart();
+function attachHistoryModalTooltips() {
+  const weatherCanvas = selectors.historyTempChart();
+  const pressureCanvas = selectors.historyPressureChart();
   if (weatherCanvas) {
-    weatherCanvas.addEventListener("mousemove", handleWeatherTooltip);
+    weatherCanvas.addEventListener("mousemove", (event) => buildWeatherTooltip(event, "weatherWeek"));
     weatherCanvas.addEventListener("mouseleave", () => {
       const tip = ensureTooltip(weatherCanvas);
       if (tip) hideTooltip(tip);
     });
+    weatherCanvas.addEventListener("touchstart", (event) => {
+      const touch = event.touches ? event.touches[0] : event;
+      buildWeatherTooltip(touch, "weatherWeek");
+    });
+    weatherCanvas.addEventListener("touchmove", (event) => {
+      const touch = event.touches ? event.touches[0] : event;
+      buildWeatherTooltip(touch, "weatherWeek");
+    });
+    weatherCanvas.addEventListener("touchend", () => {
+      const tip = ensureTooltip(weatherCanvas);
+      if (tip) scheduleHideTooltip(tip);
+    });
   }
   if (pressureCanvas) {
-    pressureCanvas.addEventListener("mousemove", handlePressureTooltip);
+    pressureCanvas.addEventListener("mousemove", (event) => buildPressureTooltip(event, "pressureWeek"));
     pressureCanvas.addEventListener("mouseleave", () => {
       const tip = ensureTooltip(pressureCanvas);
       if (tip) hideTooltip(tip);
+    });
+    pressureCanvas.addEventListener("touchstart", (event) => {
+      const touch = event.touches ? event.touches[0] : event;
+      buildPressureTooltip(touch, "pressureWeek");
+    });
+    pressureCanvas.addEventListener("touchmove", (event) => {
+      const touch = event.touches ? event.touches[0] : event;
+      buildPressureTooltip(touch, "pressureWeek");
+    });
+    pressureCanvas.addEventListener("touchend", () => {
+      const tip = ensureTooltip(pressureCanvas);
+      if (tip) scheduleHideTooltip(tip);
     });
   }
 }
@@ -1142,8 +1198,41 @@ function attachLegendToggles() {
 }
 
 function renderCharts() {
-  renderWeatherChart();
-  renderPressureChart();
+  renderWeatherChart({ metaKey: "weatherMain" });
+  renderPressureChart({ metaKey: "pressureMain" });
+}
+
+function renderHistoryCharts() {
+  const weekHistory = historyWindow(24 * 7);
+  renderWeatherChart({
+    canvas: selectors.historyTempChart(),
+    history: weekHistory,
+    metaKey: "weatherWeek",
+    emptyLabel: "Collecting 7-day history…",
+  });
+  renderPressureChart({
+    canvas: selectors.historyPressureChart(),
+    history: weekHistory,
+    metaKey: "pressureWeek",
+    emptyLabel: "Collecting 7-day pressure…",
+  });
+  if (!historyTooltipsAttached) {
+    attachHistoryModalTooltips();
+    historyTooltipsAttached = true;
+  }
+}
+
+function openHistoryModal() {
+  const modal = selectors.historyModal();
+  if (!modal) return;
+  modal.hidden = false;
+  renderHistoryCharts();
+}
+
+function closeHistoryModal() {
+  const modal = selectors.historyModal();
+  if (!modal) return;
+  modal.hidden = true;
 }
 
 async function fetchWeatherMetrics() {
@@ -1394,7 +1483,6 @@ function initServicePage() {
     clearWeatherTimer();
     clearResourceTimer();
   });
-  attachChartTooltips();
   attachLegendToggles();
 
   outdoorState.config = loadOutdoorConfig();
@@ -1502,16 +1590,21 @@ function initServicePage() {
   const pressureCanvas = selectors.pressureChart();
   [weatherCanvas, pressureCanvas].forEach((canvas) => {
     if (!canvas) return;
-    canvas.addEventListener("touchstart", (event) => {
-      handleWeatherTooltip(event.touches ? event.touches[0] : event);
+    canvas.addEventListener("click", openHistoryModal);
+  });
+
+  const historyModal = selectors.historyModal();
+  const historyClose = selectors.historyClose();
+  if (historyClose) historyClose.addEventListener("click", closeHistoryModal);
+  if (historyModal) {
+    historyModal.addEventListener("click", (event) => {
+      if (event.target === historyModal) {
+        closeHistoryModal();
+      }
     });
-    canvas.addEventListener("touchmove", (event) => {
-      handleWeatherTooltip(event.touches ? event.touches[0] : event);
-    });
-    canvas.addEventListener("touchend", () => {
-      const tip = ensureTooltip(canvas);
-      if (tip) scheduleHideTooltip(tip);
-    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeHistoryModal();
   });
 }
 

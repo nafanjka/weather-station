@@ -624,6 +624,7 @@ function initMqttSection() {
   });
 }
 
+
 function initOtaPage() {
   const form = selectors.otaForm();
   const status = selectors.otaStatus();

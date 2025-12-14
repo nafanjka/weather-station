@@ -4,11 +4,8 @@
 #include <WiFiClient.h>
 #include <PubSubClient.h>
 #include <Preferences.h>
-#include <ArduinoJson.h>
 
-class WeatherService;
 class ManagedWiFi;
-class OutdoorService;
 
 struct MqttConfig {
   bool enabled = false;
@@ -24,9 +21,10 @@ struct MqttConfig {
   String country;
 };
 
+// Handles MQTT config persistence and connection management.
 class MqttService {
 public:
-  void begin(ManagedWiFi *wifi, WeatherService *weather, OutdoorService *outdoor);
+  void begin(ManagedWiFi *wifi);
   void loop();
 
   MqttConfig currentConfig() const { return config; }
@@ -34,29 +32,25 @@ public:
   void loadConfig();
   bool isConnected();
 
+  PubSubClient &client() { return mqttClient; }
+
+  String deviceId() const;
+  String baseTopic() const { return config.baseTopic; }
+  String statusTopic() const;
+  String stateTopic() const; // kept for compatibility with publishers
+
+  bool publish(const String &topic, const String &payload, bool retain = false);
+  bool publishStatus(const char *status, bool retain = true);
+
 private:
   bool ensureConnected();
   void disconnect();
-  void publishStatus(const char *status, bool retain = true);
-  void publishTelemetry();
-  void publishDiscovery();
-  void publishSensorConfig(const String &id, const String &name, const String &templatePath, const char *unit, const char *deviceClass, const char *icon = nullptr);
-  String stateTopic() const;
-  String statusTopic() const;
-  String discoveryPrefix() const;
-  String deviceId() const;
-  bool addFinite(JsonObject obj, const char *key, float value);
   void sanitizeBaseTopic();
 
   ManagedWiFi *wifiRef = nullptr;
-  WeatherService *weatherRef = nullptr;
   Preferences prefs;
   WiFiClient wifiClient;
-  PubSubClient client{wifiClient};
-  OutdoorService *outdoorRef = nullptr;
+  PubSubClient mqttClient{wifiClient};
   MqttConfig config;
-  unsigned long lastPublish = 0;
-  unsigned long lastDiscovery = 0;
   unsigned long lastReconnectAttempt = 0;
-  bool discoverySent = false;
 };

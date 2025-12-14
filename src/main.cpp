@@ -9,14 +9,16 @@
 #include "assets/favicon.h"
 #include "service/ServiceRoutes.h"
 #include "service/WeatherService.h"
-#include "service/MqttService.h"
+#include "setup/MqttService.h"
 #include "service/OutdoorService.h"
+#include "service/WeatherMqttPublisher.h"
 
 ManagedWiFi wifiManager;
 AsyncWebServer server(80);
 WeatherService weatherService;
 OutdoorService outdoorService;
 MqttService mqttService;
+WeatherMqttPublisher mqttPublisher;
 static bool otaRestartPending = false;
 static unsigned long otaRestartAt = 0;
 
@@ -52,7 +54,8 @@ void setup(){
   wifiManager.begin();
   weatherService.begin();
   outdoorService.begin(&wifiManager);
-  mqttService.begin(&wifiManager, &weatherService, &outdoorService);
+  mqttService.begin(&wifiManager);
+  mqttPublisher.begin(&mqttService, &weatherService, &outdoorService);
 
   registerServiceRoutes(server, weatherService, outdoorService);
   registerSetupRoutes(server, wifiManager, [](){ scheduleRestart(); }, &mqttService);
@@ -70,6 +73,7 @@ void loop(){
   wifiManager.loop();
   outdoorService.loop();
   mqttService.loop();
+  mqttPublisher.loop();
   handlePendingRestart();
   delay(10);
 }

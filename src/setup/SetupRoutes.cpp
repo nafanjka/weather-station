@@ -8,7 +8,7 @@
 
 #include "ManagedWiFi.h"
 #include "common/ResponseHelpers.h"
-#include "service/MqttService.h"
+#include "setup/MqttService.h"
 
 namespace {
 String modeToString(ManagedWiFi::Mode mode) {

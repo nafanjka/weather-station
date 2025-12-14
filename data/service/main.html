@@ -129,7 +129,7 @@
         <div class="weather-chart-card">
           <header>
             <h3>Temperature & Humidity</h3>
-            <p>Tracked across the past 24 hours.</p>
+            <p>Tracked across the past 24 hours. Tap to open the 7-day view.</p>
           </header>
           <canvas id="weather-chart" class="trend-canvas"></canvas>
           <div class="chart-legend">
@@ -144,7 +144,7 @@
         <div class="weather-chart-card pressure-card">
           <header>
             <h3>Pressure</h3>
-            <p>24-hour barometric trend.</p>
+            <p>24-hour barometric trend. Tap to open the 7-day view.</p>
           </header>
           <canvas id="pressure-chart" class="trend-canvas"></canvas>
           <div class="chart-legend">
@@ -300,6 +300,50 @@
       <div class="modal-footer">
         <button class="button-link secondary" id="outdoor-cancel">Cancel</button>
         <button class="button-link" id="outdoor-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="history-modal" class="modal" hidden>
+    <div class="modal-dialog wide">
+      <div class="modal-header">
+        <h3>7-day History</h3>
+        <button class="button-link secondary" id="history-close">Close</button>
+      </div>
+      <div class="modal-body history-modal-body">
+        <section class="history-block">
+          <div class="history-header">
+            <div>
+              <h4>Temperature & Humidity</h4>
+              <p class="subtitle">Full week view; hover or tap for exact values.</p>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item temp-in" data-series="tempIn">Temp indoor</span>
+              <span class="legend-item temp-out" data-series="tempOut">Temp outdoor</span>
+              <span class="legend-item humidity-in" data-series="humIn">Hum indoor</span>
+              <span class="legend-item humidity-out" data-series="humOut">Hum outdoor</span>
+            </div>
+          </div>
+          <div class="chart-shell">
+            <canvas id="history-weather-chart" class="trend-canvas"></canvas>
+          </div>
+        </section>
+
+        <section class="history-block">
+          <div class="history-header">
+            <div>
+              <h4>Pressure</h4>
+              <p class="subtitle">Full week barometric trend.</p>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item pressure-in" data-series="pressIn">Pressure indoor</span>
+              <span class="legend-item pressure-out" data-series="pressOut">Pressure outdoor</span>
+            </div>
+          </div>
+          <div class="chart-shell">
+            <canvas id="history-pressure-chart" class="trend-canvas"></canvas>
+          </div>
+        </section>
       </div>
     </div>
   </div>

@@ -16,7 +16,15 @@ ESP32 firmware that serves a web UI from LittleFS, publishes indoor metrics to M
 2. Build firmware: `pio run`
 3. Flash over USB: `pio run -t upload -e esp32dev --upload-port /dev/tty.usbserial-130` (adjust port as needed).
 4. Upload static assets (if changed): `pio run -t uploadfs`
-5. OTA alternative: `curl -F firmware=@.pio/build/esp32dev/firmware.bin http://<device>/api/ota/upload`
+5. OTA alternative over Wi-Fi:
+	 - Firmware (code changes): `pio run` ➜ `curl --fail --max-time 120 --connect-timeout 10 -H 'Expect:' -F firmware=@.pio/build/esp32dev/firmware.bin http://<device>/api/ota/upload`
+	 - LittleFS assets (UI/static changes only): `pio run -t buildfs` ➜ 
+		 `curl --fail --max-time 180 --connect-timeout 10 -H 'Expect:' -F littlefs=@.pio/build/esp32dev/littlefs.bin http://<device>/api/fs/upload`
+
+When to use which flow
+- USB flash (`pio run -t upload ...`): first-time flash, bootloader/partition changes, or recovery if OTA fails.
+- OTA firmware (`/api/ota/upload`): when you change C++ code/logic; keeps settings and avoids USB.
+- OTA LittleFS (`/api/fs/upload`): when you change web assets (HTML/JS/CSS) without firmware changes. Safe to run after firmware OTA if both changed.
 
 On first boot the board exposes an AP `ESPPortal-XXXXXX`. Visit `http://192.168.4.1/` to set Wi-Fi or use the OTA page. Once connected to Wi-Fi, the service UI is at `/service/main.html` and OTA remains available.
 
