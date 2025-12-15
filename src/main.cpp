@@ -12,6 +12,7 @@
 #include "setup/MqttService.h"
 #include "service/OutdoorService.h"
 #include "service/WeatherMqttPublisher.h"
+#include "service/MatrixDisplayService.h"
 
 ManagedWiFi wifiManager;
 AsyncWebServer server(80);
@@ -19,6 +20,7 @@ WeatherService weatherService;
 OutdoorService outdoorService;
 MqttService mqttService;
 WeatherMqttPublisher mqttPublisher;
+MatrixDisplayService matrixService;
 static bool otaRestartPending = false;
 static unsigned long otaRestartAt = 0;
 
@@ -56,8 +58,10 @@ void setup(){
   outdoorService.begin(&wifiManager);
   mqttService.begin(&wifiManager);
   mqttPublisher.begin(&mqttService, &weatherService, &outdoorService);
+  matrixService.attachMqtt(&mqttService);
+  matrixService.begin(&weatherService, &outdoorService);
 
-  registerServiceRoutes(server, weatherService, outdoorService);
+  registerServiceRoutes(server, weatherService, outdoorService, matrixService);
   registerSetupRoutes(server, wifiManager, [](){ scheduleRestart(); }, &mqttService);
   server.on("/", HTTP_GET, handleRoot);
 
@@ -74,6 +78,7 @@ void loop(){
   outdoorService.loop();
   mqttService.loop();
   mqttPublisher.loop();
+  matrixService.loop();
   handlePendingRestart();
   delay(10);
 }

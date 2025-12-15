@@ -559,8 +559,25 @@ function renderClock() {
     timeZone: tz,
   };
   if (cfg.showSeconds) formatOpts.second = "2-digit";
-  const timeString = new Intl.DateTimeFormat("en-US", formatOpts).format(now);
-  if (timeEl) timeEl.textContent = timeString;
+  let timeString = new Intl.DateTimeFormat("en-US", formatOpts).format(now);
+  // Only animate if seconds are shown and colon is present
+  if (cfg.showSeconds && timeString.includes(":")) {
+    // Find the first colon and wrap it in a span
+    const colonIdx = timeString.indexOf(":");
+    const before = timeString.slice(0, colonIdx);
+    const after = timeString.slice(colonIdx + 1);
+    // If there is a second colon (for HH:MM:SS), wrap both
+    let html;
+    if (after.includes(":")) {
+      const secondColonIdx = after.indexOf(":");
+      html = `${before}<span id="clock-colon">:</span>${after.slice(0, secondColonIdx)}<span id="clock-colon2">:</span>${after.slice(secondColonIdx + 1)}`;
+    } else {
+      html = `${before}<span id="clock-colon">:</span>${after}`;
+    }
+    if (timeEl) timeEl.innerHTML = html;
+  } else {
+    if (timeEl) timeEl.textContent = timeString;
+  }
 
   if (msEl) {
     if (cfg.showMillis) {
@@ -602,8 +619,37 @@ function startClockLoop() {
   stopClockLoop();
   clockState.config = clockState.config || loadClockConfig();
   renderClock();
+  // Start colon animation if seconds are shown
+  if (clockState.config.showSeconds) {
+    animateColonPulse();
+  }
   const interval = clockState.config.showMillis ? 120 : 1000;
-  clockState.timer = window.setInterval(renderClock, interval);
+  clockState.timer = window.setInterval(() => {
+    renderClock();
+    if (clockState.config.showSeconds) animateColonPulse();
+  }, interval);
+}
+
+// Animate the colon(s) in the clock with a smooth sinusoidal pulse
+function animateColonPulse() {
+  const colon = document.getElementById("clock-colon");
+  const colon2 = document.getElementById("clock-colon2");
+  if (!colon) return;
+  function update() {
+    const now = performance.now();
+    // 1 Hz pulse, phase 0 at second start
+    const ms = now % 1000;
+    const phase = ms / 1000;
+    // Sine wave: 0.5 + 0.5*sin(2π*phase - π/2)
+    const pulse = 0.5 + 0.5 * Math.sin(2 * Math.PI * phase - Math.PI / 2);
+    const min = 0.25, max = 1.0;
+    const opacity = min + (max - min) * pulse;
+    colon.style.opacity = opacity;
+    if (colon2) colon2.style.opacity = opacity;
+    colon._pulseAnim = requestAnimationFrame(update);
+  }
+  if (colon._pulseAnim) cancelAnimationFrame(colon._pulseAnim);
+  update();
 }
 
 function updateForecastCards() {
@@ -845,11 +891,13 @@ function readConfigFromForm() {
 function closeModal() {
   const modal = selectors.modal();
   if (modal) modal.hidden = true;
+  document.body.classList.remove('modal-open');
 }
 
 function openModal() {
   const modal = selectors.modal();
   if (modal) modal.hidden = false;
+  document.body.classList.add('modal-open');
 }
 
 function ensureGeolocation(cfg) {
@@ -1820,9 +1868,21 @@ function initServicePage() {
     });
   }
 
+  // Load configs before starting the clock to avoid a local-time flash
+  outdoorState.config = loadOutdoorConfig();
+  outdoorState.selection = outdoorState.config || null;
+  applyConfigToForm(outdoorState.config);
+  updateLocationSummary();
+
   clockState.config = loadClockConfig();
   applyClockConfigToForm(clockState.config);
-  startClockLoop();
+
+  const startClockWithTimezone = () => {
+    // Re-read after potential updates to outdoorState config
+    clockState.config = clockState.config || loadClockConfig();
+    stopClockLoop();
+    startClockLoop();
+  };
 
   loadChartVisibility();
   loadWeatherHistory();
@@ -1840,11 +1900,7 @@ function initServicePage() {
   });
   attachLegendToggles();
 
-  outdoorState.config = loadOutdoorConfig();
-  applyConfigToForm(outdoorState.config);
-  updateLocationSummary();
-
-  // Pull stored location from device so MQTT can share the same outdoor source.
+  // Pull stored location from device before starting the clock to avoid timezone flicker.
   fetchJSON("/api/outdoor/config")
     .then((cfg) => {
       if (!cfg) return;
@@ -1859,6 +1915,7 @@ function initServicePage() {
       };
       if (Number.isFinite(merged.lat) && Number.isFinite(merged.lon)) {
         outdoorState.config = merged;
+        outdoorState.selection = merged;
         saveOutdoorConfig(merged);
         applyConfigToForm(merged);
         updateLocationSummary();
@@ -1867,7 +1924,15 @@ function initServicePage() {
     })
     .catch(() => {
       /* optional sync; ignore errors */
+    })
+    .finally(() => {
+      startClockWithTimezone();
     });
+
+  // If device fetch is slow or fails, still start clock once with stored config
+  setTimeout(() => {
+    if (!clockState.timer) startClockWithTimezone();
+  }, 150);
 
   const searchInput = selectors.searchInput();
   if (searchInput) {

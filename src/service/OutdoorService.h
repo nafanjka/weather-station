@@ -21,6 +21,7 @@ struct OutdoorSnapshot {
   float pressureHpa = NAN;
   float pressureMmHg = NAN;
   float altitudeM = NAN;
+  float windSpeed = NAN;
 };
 
 constexpr uint16_t OUTLOOK_HORIZONS[] = {1, 3, 6, 12, 24, 48, 72, 96};

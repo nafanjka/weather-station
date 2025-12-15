@@ -77,6 +77,7 @@ void WeatherMqttPublisher::publishDiscovery() {
   publishSensorConfig("out_temp_c", cfg.deviceName + " Outdoor Temp", "{{ value_json.outdoor.temperatureC }}", "°C", "temperature");
   publishSensorConfig("out_humidity", cfg.deviceName + " Outdoor Humidity", "{{ value_json.outdoor.humidity }}", "%", "humidity");
   publishSensorConfig("out_pressure", cfg.deviceName + " Outdoor Pressure", "{{ value_json.outdoor.pressureHpa }}", "hPa", "pressure");
+  publishSensorConfig("out_wind_ms", cfg.deviceName + " Outdoor Wind", "{{ value_json.outdoor.windSpeed }}", "m/s", "wind_speed", "mdi:weather-windy");
 
   for (uint16_t h : OUTLOOK_HORIZONS) {
     String suffix = String(h) + "h";
@@ -186,6 +187,7 @@ void WeatherMqttPublisher::publishTelemetry() {
     addFinite(outdoor, "pressureHpa", out.pressureHpa);
     addFinite(outdoor, "pressureMmHg", out.pressureMmHg);
     addFinite(outdoor, "altitudeM", out.altitudeM);
+    addFinite(outdoor, "windSpeed", out.windSpeed);
 
     JsonObject outlook = doc["outlook"].to<JsonObject>();
     for (uint16_t h : OUTLOOK_HORIZONS) {
@@ -195,6 +197,7 @@ void WeatherMqttPublisher::publishTelemetry() {
       addFinite(slot, "humidity", snap.humidity);
       addFinite(slot, "pressureHpa", snap.pressureHpa);
       addFinite(slot, "pressureMmHg", snap.pressureMmHg);
+      addFinite(slot, "windSpeed", snap.windSpeed);
     }
   }
 

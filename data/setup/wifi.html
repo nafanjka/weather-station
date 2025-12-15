@@ -110,6 +110,127 @@
       <a href="/setup/ota.html" class="button-link">Open OTA portal</a>
     </section>
 
+    <section id="matrix-section">
+      <h2>LED Matrix</h2>
+      <p>Configure the WS2812 panel layout and keep a clean clock-only view.</p>
+      <div class="status" id="matrix-status" hidden></div>
+      <form id="matrix-form">
+        <div class="toggle-row matrix-toggle-row">
+          <div class="switch-row">
+            <span>Enable matrix</span>
+            <label class="switch">
+              <input type="checkbox" id="matrix-enabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="switch-row">
+            <span>Night dimming (11pm-7am)</span>
+            <label class="switch">
+              <input type="checkbox" id="matrix-night-enabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-grid matrix-grid">
+          <label>
+            Data pin
+            <input type="number" id="matrix-pin" min="0" max="39" value="2" />
+          </label>
+          <label>
+            Width (px)
+            <input type="number" id="matrix-width" min="1" max="256" value="32" />
+          </label>
+          <label>
+            Height (px)
+            <input type="number" id="matrix-height" min="1" max="256" value="8" />
+          </label>
+          <label>
+            Orientation
+            <select id="matrix-orientation">
+              <option value="0">0°</option>
+              <option value="1">90°</option>
+              <option value="2">180°</option>
+              <option value="3">270°</option>
+            </select>
+          </label>
+          <label>
+            Brightness
+            <input type="number" id="matrix-brightness" min="1" max="255" value="48" />
+          </label>
+          <label>
+            Max brightness cap
+            <input type="number" id="matrix-max-brightness" min="1" max="255" value="96" />
+          </label>
+          <label>
+            Night brightness
+            <input type="number" id="matrix-night-brightness" min="1" max="255" value="16" />
+          </label>
+          <label>
+            Frame rate (FPS)
+            <input type="number" id="matrix-fps" min="1" max="200" value="30" />
+          </label>
+        </div>
+
+        <div class="matrix-flags">
+          <label class="checkbox-row">
+            Serpentine wiring
+            <input type="checkbox" id="matrix-serpentine" />
+          </label>
+          <label class="checkbox-row">
+            Start at bottom edge
+            <input type="checkbox" id="matrix-bottom" />
+          </label>
+          <label class="checkbox-row">
+            Flip X
+            <input type="checkbox" id="matrix-flipx" />
+          </label>
+        </div>
+
+        <div class="matrix-colors">
+          <div>
+            <label>
+              Clock color style
+              <select id="matrix-color-mode">
+                <option value="0">Solid</option>
+                <option value="1">Gradient</option>
+                <option value="2">Dynamic</option>
+              </select>
+            </label>
+          </div>
+          <label>
+            Primary color
+            <input type="color" id="matrix-color1" value="#78d2ff" />
+          </label>
+          <label>
+            Secondary color
+            <input type="color" id="matrix-color2" value="#b478ff" />
+          </label>
+          <p class="hint">Solid uses primary; gradient blends both; dynamic cycles a spectrum using both as anchors.</p>
+        </div>
+
+  <p class="hint">Clock-only mode keeps unused pixels off; night dimming auto-runs 11pm-7am.</p>
+        <div class="link-row">
+          <button type="submit">Save matrix settings</button>
+          <button type="button" class="secondary" id="matrix-refresh">Refresh</button>
+          <button type="button" class="secondary" id="matrix-test">Test pattern</button>
+          <button type="button" class="secondary" id="matrix-clear">Clear</button>
+            <button type="button" class="secondary" id="matrix-preview">Preview</button>
+        </div>
+      </form>
+    </section>
+
+      <div id="matrix-preview-modal" class="modal-backdrop" hidden>
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Matrix Preview</h3>
+            <button type="button" class="icon-btn" id="matrix-preview-close" aria-label="Close">✕</button>
+          </div>
+          <canvas id="matrix-preview-canvas" width="320" height="80"></canvas>
+          <p class="hint">Preview is simulated in the browser using current form values.</p>
+        </div>
+      </div>
+
     <section id="mqtt-section">
       <h2>MQTT &amp; Home Assistant</h2>
       <div class="mqtt-header-row">

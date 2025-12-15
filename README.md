@@ -11,6 +11,7 @@ ESP32 firmware that serves a web UI from LittleFS, publishes indoor metrics to M
 - MQTT telemetry + HA discovery, including outdoor metrics and top-level city/country/lat/lon, plus separate city/country text entities.
 - Async stack: ESPAsyncWebServer, AsyncTCP, ArduinoJson v7, PubSubClient.
 - Modern web UI with animated sky icons, forecast snapshots, and a configurable clock banner.
+- WS2812 matrix renderer with clock + weather + forecast scenes, adjustable geometry, wiring order (serpentine/straight), origin, rotation, brightness, FPS, scene timing, brightness cap, night dim window, scene order/count, and test/clear actions (via `/api/matrix/config` and `/api/matrix/action`).
 
 ## Web UI Overview (`/service/main.html`)
 - **Weather tiles**: Indoor/outdoor temperature, humidity (with wind), pressure, altitude, dew point, and live status of SHT31/BMP580 sensors.
@@ -60,6 +61,9 @@ On first boot the board exposes an AP `ESPPortal-XXXXXX`. Visit `http://192.168.
 - `POST /api/outdoor/config` – save outdoor location `{enabled,lat,lon,city,country}`.
 - `GET /api/outdoor/forecast` – current cached outdoor data and outlook; non-blocking.
 - `POST /api/outdoor/cache` – push outdoor cache `{current:{...}, outlook:{h1:{...},...}, fetchedAtMs?}`.
+- `GET /api/matrix/config` – read matrix layout/render settings (enable, pin, width/height, serpentine, origin, orientation, brightness, max brightness cap, night schedule/brightness, FPS, dwell/transition, scene order/count).
+- `POST /api/matrix/config` – save matrix settings.
+- `POST /api/matrix/action` – trigger actions `{action:"test"|"clear"}`.
 - `POST /api/ota/upload` – upload firmware `.bin` (reboots on success).
 - Wi-Fi setup endpoints live under `/api/wifi/*` and serve the portal; see `SetupRoutes` for details.
 
@@ -67,16 +71,25 @@ On first boot the board exposes an AP `ESPPortal-XXXXXX`. Visit `http://192.168.
 - Base topic: `homeassistant/weatherstation` (configurable). Telemetry on `<base>/telemetry`, status on `<base>/status`.
 - HA discovery publishes indoor metrics, system/network stats, outdoor metrics, and forecast horizons (1h–96h).
 - Location surfaced both as top-level fields (`city`, `country`, `lat`, `lon`, plus `outdoorCity/OutdoorCountry/Lat/Lon`) and dedicated text entities `location_city` and `location_country`.
+- Outdoor wind speed is published as `outdoor.windSpeed` (m/s) with HA discovery exposing an "Outdoor Wind" sensor.
+- Matrix control: command on `<base>/matrix/cmd` (JSON fields: `enabled`, `brightness`, `maxBrightness`, `nightEnabled`, `nightStartMin`, `nightEndMin`, `nightBrightness`, `sceneDwellMs`, `transitionMs`, `sceneCount`, `sceneOrder`, `action`), state on `<base>/matrix/state` (retained) with effective brightness and scene metadata.
 
 ## Outdoor Data Flow
 - Device does NOT fetch from the internet. Push data to `POST /api/outdoor/cache` (e.g., from your server/UI after calling an external API). Cached data is then served via `/api/outdoor/forecast` and published over MQTT.
 
 ## Notes / Limits
-- LED matrix rendering is not included; clock is UI-side only (no physical display yet). Flash/RAM headroom leaves room to add it.
-- Keep WS2812 brightness capped and use a dedicated 5 V supply if you add the matrix.
+- Matrix renderer shows clock + indoor/outdoor + forecast scenes; wire WS2812 to the configured pin and adjust layout/orientation at `/api/matrix/config`.
+- Use the matrix setup page (LittleFS UI) to set brightness, cap, night dim window, scene order/count, FPS, and dwell/transition; test/clear buttons call `/api/matrix/action`.
+- Keep WS2812 brightness capped and use a dedicated 5 V supply; defaults target low brightness and ~30 FPS.
 
 ## Quick Curl Examples
 - Push outdoor cache:
 	`curl -H "Content-Type: application/json" --data @outdoor.json http://<device>/api/outdoor/cache`
 - Read forecast:
 	`curl http://<device>/api/outdoor/forecast`
+- Save matrix config (edit fields as needed):
+	`curl -H "Content-Type: application/json" -d '{"enabled":true,"brightness":64,"maxBrightness":96,"nightEnabled":true,"nightStartMin":1380,"nightEndMin":420,"nightBrightness":16,"fps":30,"sceneDwellMs":5000,"transitionMs":500,"sceneCount":3,"sceneOrder":[0,1,2]}' http://<device>/api/matrix/config`
+- Matrix test pattern (~3s):
+	`curl -H "Content-Type: application/json" -d '{"action":"test"}' http://<device>/api/matrix/action`
+- Matrix clear:
+	`curl -H "Content-Type: application/json" -d '{"action":"clear"}' http://<device>/api/matrix/action`

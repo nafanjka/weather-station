@@ -36,10 +36,155 @@ const selectors = {
   mqttConnDot: () => document.getElementById("mqtt-conn-dot"),
   mqttConnLabel: () => document.getElementById("mqtt-conn-label"),
   mqttIndicator: () => document.getElementById("mqtt-indicator"),
+  matrixForm: () => document.getElementById("matrix-form"),
+  matrixStatus: () => document.getElementById("matrix-status"),
+  matrixEnabled: () => document.getElementById("matrix-enabled"),
+  matrixPin: () => document.getElementById("matrix-pin"),
+  matrixWidth: () => document.getElementById("matrix-width"),
+  matrixHeight: () => document.getElementById("matrix-height"),
+  matrixSerp: () => document.getElementById("matrix-serpentine"),
+  matrixBottom: () => document.getElementById("matrix-bottom"),
+  matrixFlipX: () => document.getElementById("matrix-flipx"),
+  matrixOrient: () => document.getElementById("matrix-orientation"),
+  matrixBrightness: () => document.getElementById("matrix-brightness"),
+  matrixMaxBrightness: () => document.getElementById("matrix-max-brightness"),
+  matrixNightEnabled: () => document.getElementById("matrix-night-enabled"),
+  matrixNightBrightness: () => document.getElementById("matrix-night-brightness"),
+  matrixFps: () => document.getElementById("matrix-fps"),
+  matrixColorMode: () => document.getElementById("matrix-color-mode"),
+  matrixColor1: () => document.getElementById("matrix-color1"),
+  matrixColor2: () => document.getElementById("matrix-color2"),
+  matrixRefresh: () => document.getElementById("matrix-refresh"),
+  matrixTest: () => document.getElementById("matrix-test"),
+  matrixClear: () => document.getElementById("matrix-clear"),
+  matrixPreview: () => document.getElementById("matrix-preview"),
+  matrixPreviewModal: () => document.getElementById("matrix-preview-modal"),
+  matrixPreviewClose: () => document.getElementById("matrix-preview-close"),
+  matrixPreviewCanvas: () => document.getElementById("matrix-preview-canvas"),
 };
 
 let scanTimer = 0;
 let activeNetworkForm = null;
+
+// Tiny 3x5 pixel font for preview (1 pixel = 1 LED)
+const MATRIX_FONT = {
+  "0": ["111", "101", "101", "101", "111"],
+  "1": ["010", "110", "010", "010", "111"],
+  "2": ["111", "001", "111", "100", "111"],
+  "3": ["111", "001", "111", "001", "111"],
+  "4": ["101", "101", "111", "001", "001"],
+  "5": ["111", "100", "111", "001", "111"],
+  "6": ["111", "100", "111", "101", "111"],
+  "7": ["111", "001", "001", "001", "001"],
+  "8": ["111", "101", "111", "101", "111"],
+  "9": ["111", "101", "111", "001", "111"],
+  ":": ["0", "1", "0", "1", "0"],
+  " ": ["0", "0", "0", "0", "0"],
+  "A": ["111", "101", "111", "101", "101"],
+  "B": ["110", "101", "110", "101", "110"],
+  "C": ["111", "100", "100", "100", "111"],
+  "D": ["110", "101", "101", "101", "110"],
+  "E": ["111", "100", "111", "100", "111"],
+  "F": ["111", "100", "111", "100", "100"],
+  "I": ["111", "010", "010", "010", "111"],
+  "N": ["101", "111", "111", "101", "101"],
+  "O": ["111", "101", "101", "101", "111"],
+  "T": ["111", "010", "010", "010", "010"],
+  "U": ["101", "101", "101", "101", "111"],
+  "L": ["100", "100", "100", "100", "111"],
+  "R": ["110", "101", "110", "101", "101"],
+  "S": ["111", "100", "111", "001", "111"],
+  "P": ["111", "101", "111", "100", "100"],
+  "M": ["101", "111", "101", "101", "101"],
+};
+
+const NIGHT_START_MINUTES = 23 * 60;
+const NIGHT_END_MINUTES = 7 * 60;
+
+let matrixClockPrefs = {
+  clockUse12h: false,
+  clockShowSeconds: true,
+  clockShowMillis: false,
+};
+let lastClockSignature = "";
+
+function loadClockConfigFull() {
+  const defaults = {
+    timezoneMode: "location",
+    manualTimezone: "",
+    format: "24h",
+    showSeconds: true,
+    showMillis: false,
+  };
+  try {
+    const raw = localStorage.getItem("clockConfig");
+    if (!raw) return { ...defaults };
+    const parsed = JSON.parse(raw);
+    return { ...defaults, ...parsed };
+  } catch (_) {
+    return { ...defaults };
+  }
+}
+
+function loadOutdoorConfigFull() {
+  try {
+    const raw = localStorage.getItem("outdoorConfig");
+    if (raw) return JSON.parse(raw);
+  } catch (_) {
+    /* ignore */
+  }
+  return null;
+}
+
+function getClockPrefs() {
+  try {
+    const raw = localStorage.getItem("clockConfig");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        clockUse12h: parsed?.format === "12h",
+        clockShowSeconds: parsed?.showSeconds !== false,
+        clockShowMillis: !!parsed?.showMillis,
+      };
+    }
+  } catch (_) {
+    /* ignore parse error */
+  }
+  return { ...matrixClockPrefs };
+}
+
+function resolveActiveTimezone() {
+  const cfg = loadClockConfigFull();
+  if (cfg.timezoneMode === "manual" && cfg.manualTimezone) return cfg.manualTimezone;
+  const outdoor = loadOutdoorConfigFull();
+  if (cfg.timezoneMode === "location" && outdoor?.timezone) return outdoor.timezone;
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return browserTz || "UTC";
+}
+
+function clockSignature(prefs) {
+  return `${prefs.clockUse12h ? "12" : "24"}|${prefs.clockShowSeconds ? 1 : 0}|${prefs.clockShowMillis ? 1 : 0}`;
+}
+
+async function syncMatrixClockToDevice({ silent = true } = {}) {
+  const status = selectors.matrixStatus();
+  const payload = readMatrixForm();
+  try {
+    await fetchJSON("/api/matrix/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    lastClockSignature = clockSignature(getClockPrefs());
+    if (!silent && status) {
+      showBanner(status, "Matrix clock synced to banner", "success");
+    }
+  } catch (error) {
+    if (!silent && status) {
+      showBanner(status, error.message || "Failed to sync matrix clock", "error");
+    }
+  }
+}
 
 async function fetchJSON(url, options = {}) {
   const response = await fetch(url, options);
@@ -525,6 +670,7 @@ function initWifiPage() {
   window.addEventListener("beforeunload", clearScanTimer);
 
   initMqttSection();
+  initMatrixSection();
 }
 
 function updateMqttIndicator(connected) {
@@ -620,6 +766,389 @@ function initMqttSection() {
       showBanner(status, "MQTT settings saved", "success");
     } catch (error) {
       showBanner(status, error.message || "Failed to save MQTT settings", "error");
+    }
+  });
+}
+
+async function loadMatrixConfig() {
+  const status = selectors.matrixStatus();
+  try {
+    const cfg = await fetchJSON("/api/matrix/config");
+    if (!cfg) return;
+    const map = {
+      enabled: selectors.matrixEnabled(),
+      pin: selectors.matrixPin(),
+      width: selectors.matrixWidth(),
+      height: selectors.matrixHeight(),
+      serp: selectors.matrixSerp(),
+      bottom: selectors.matrixBottom(),
+      flipx: selectors.matrixFlipX(),
+      orient: selectors.matrixOrient(),
+      bright: selectors.matrixBrightness(),
+      maxBright: selectors.matrixMaxBrightness(),
+      nightEn: selectors.matrixNightEnabled(),
+      nightBright: selectors.matrixNightBrightness(),
+      fps: selectors.matrixFps(),
+      colorMode: selectors.matrixColorMode(),
+      color1: selectors.matrixColor1(),
+      color2: selectors.matrixColor2(),
+    };
+    if (map.enabled) map.enabled.checked = !!cfg.enabled;
+    if (map.pin) map.pin.value = cfg.pin ?? 2;
+    if (map.width) map.width.value = cfg.width ?? 32;
+    if (map.height) map.height.value = cfg.height ?? 8;
+    if (map.serp) map.serp.checked = !!cfg.serpentine;
+    if (map.bottom) map.bottom.checked = !!cfg.startBottom;
+    if (map.flipx) map.flipx.checked = !!cfg.flipX;
+    if (map.orient) map.orient.value = cfg.orientationIndex ?? 0;
+    if (map.bright) map.bright.value = cfg.brightness ?? 48;
+    if (map.maxBright) map.maxBright.value = cfg.maxBrightness ?? 96;
+    if (map.nightEn) map.nightEn.checked = !!cfg.nightEnabled;
+    if (map.nightBright) map.nightBright.value = cfg.nightBrightness ?? 16;
+    if (map.fps) map.fps.value = cfg.fps ?? 30;
+    if (map.colorMode && typeof cfg.colorMode !== "undefined") map.colorMode.value = cfg.colorMode;
+    if (map.color1 && Array.isArray(cfg.color1) && cfg.color1.length >= 3) {
+      const [r, g, b] = cfg.color1;
+      map.color1.value = `#${[r, g, b].map((v) => Number(v).toString(16).padStart(2, "0")).join("")}`;
+    }
+    if (map.color2 && Array.isArray(cfg.color2) && cfg.color2.length >= 3) {
+      const [r, g, b] = cfg.color2;
+      map.color2.value = `#${[r, g, b].map((v) => Number(v).toString(16).padStart(2, "0")).join("")}`;
+    }
+
+    const deviceClockPrefs = {
+      clockUse12h: !!cfg.clockUse12h,
+      clockShowSeconds: cfg.clockShowSeconds !== false,
+      clockShowMillis: !!cfg.clockShowMillis,
+    };
+    matrixClockPrefs = deviceClockPrefs;
+    const deviceSig = clockSignature(deviceClockPrefs);
+    // Prefer live banner settings when available
+    matrixClockPrefs = getClockPrefs();
+    const localSig = clockSignature(matrixClockPrefs);
+    lastClockSignature = localSig;
+    if (localSig !== deviceSig) {
+      syncMatrixClockToDevice({ silent: true });
+    }
+    hideBanner(status);
+  } catch (error) {
+    showBanner(status, error.message || "Failed to load matrix settings", "error");
+  }
+}
+
+function readMatrixForm() {
+  const nightEnabled = selectors.matrixNightEnabled()?.checked || false;
+  const clockPrefs = getClockPrefs();
+
+  return {
+    enabled: selectors.matrixEnabled()?.checked || false,
+    pin: Number(selectors.matrixPin()?.value) || 2,
+    width: Number(selectors.matrixWidth()?.value) || 32,
+    height: Number(selectors.matrixHeight()?.value) || 8,
+    serpentine: selectors.matrixSerp()?.checked || false,
+    startBottom: selectors.matrixBottom()?.checked || false,
+    flipX: selectors.matrixFlipX()?.checked || false,
+    orientationIndex: Number(selectors.matrixOrient()?.value) || 0,
+    brightness: Number(selectors.matrixBrightness()?.value) || 48,
+    maxBrightness: Number(selectors.matrixMaxBrightness()?.value) || 96,
+    nightEnabled,
+    nightStartMin: NIGHT_START_MINUTES,
+    nightEndMin: NIGHT_END_MINUTES,
+    nightBrightness: Number(selectors.matrixNightBrightness()?.value) || 16,
+    fps: Number(selectors.matrixFps()?.value) || 30,
+    sceneDwellMs: 0,
+    transitionMs: 0,
+    sceneOrder: [0],
+    sceneCount: 1,
+    clockUse12h: !!clockPrefs.clockUse12h,
+    clockShowSeconds: clockPrefs.clockShowSeconds !== false,
+    clockShowMillis: !!clockPrefs.clockShowMillis,
+    colorMode: Number(selectors.matrixColorMode()?.value ?? 0) || 0,
+    color1: (() => {
+      const v = selectors.matrixColor1()?.value || "#78d2ff";
+      const hex = v.replace("#", "");
+      if (hex.length !== 6) return [120, 210, 255];
+      return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+    })(),
+    color2: (() => {
+      const v = selectors.matrixColor2()?.value || "#b478ff";
+      const hex = v.replace("#", "");
+      if (hex.length !== 6) return [180, 120, 255];
+      return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+    })(),
+  };
+}
+
+let matrixPreviewFrame = 0;
+let matrixPreviewHandle = null;
+
+function stopMatrixPreview() {
+  if (matrixPreviewHandle !== null) {
+    cancelAnimationFrame(matrixPreviewHandle);
+    matrixPreviewHandle = null;
+  }
+}
+
+function renderMatrixPreviewOnce(cfg) {
+  const canvas = selectors.matrixPreviewCanvas();
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const w = Math.max(1, Math.min(256, cfg.width || 32));
+  const h = Math.max(1, Math.min(256, cfg.height || 8));
+  const scale = Math.max(4, Math.floor(Math.min(canvas.width / w, canvas.height / h)));
+  canvas.width = w * scale;
+  canvas.height = h * scale;
+
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const drawPixel = (x, y, color) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(x * scale + 1, y * scale + 1, scale - 2, scale - 2);
+  };
+
+  const glyphFor = (ch) => MATRIX_FONT[ch] || MATRIX_FONT[" "];
+
+  const drawPixelChar = (ch, px, py, color) => {
+    const rows = glyphFor(ch);
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      for (let c = 0; c < row.length; c++) {
+        if (row[c] === "1") {
+          drawPixel(px + c, py + r, color);
+        }
+      }
+    }
+    return rows[0]?.length || 3;
+  };
+
+  const measurePixelText = (text) => {
+    const upper = text.toUpperCase();
+    let width = 0;
+    for (let i = 0; i < upper.length; i++) {
+      const g = glyphFor(upper[i]);
+      const wch = g ? g[0]?.length || 3 : 3;
+      width += wch + 1;
+    }
+    return width > 0 ? width - 1 : 0;
+  };
+
+  const drawPixelText = (text, px, py, color) => {
+    let cursor = px;
+    const upper = text.toUpperCase();
+    for (let i = 0; i < upper.length; i++) {
+      const wch = drawPixelChar(upper[i], cursor, py, color);
+      cursor += wch + 1;
+      if (cursor >= w) break;
+    }
+  };
+
+  const now = new Date();
+  const tz = resolveActiveTimezone();
+  const clockPrefs = getClockPrefs();
+  const use12h = !!clockPrefs.clockUse12h;
+  const showSeconds = clockPrefs.clockShowSeconds !== false;
+  const showMillis = !!clockPrefs.clockShowMillis;
+
+  const colorMode = Number(cfg.colorMode ?? 0);
+  const color1 = cfg.color1 || [120, 210, 255];
+  const color2 = cfg.color2 || [180, 120, 255];
+
+  const colorAt = (x) => {
+    if (colorMode === 1) {
+      const t = w > 1 ? x / (w - 1) : 0;
+      const r = Math.round((1 - t) * color1[0] + t * color2[0]);
+      const g = Math.round((1 - t) * color1[1] + t * color2[1]);
+      const b = Math.round((1 - t) * color1[2] + t * color2[2]);
+      return `rgb(${r},${g},${b})`;
+    }
+    if (colorMode === 2) {
+      const t = ((performance.now() % 8000) / 8000 + (w ? x / w : 0)) % 1;
+      const r = Math.round(Math.sin(t * 6.28318) * 127 + 128);
+      const g = Math.round(Math.sin((t + 0.33) * 6.28318) * 127 + 128);
+      const b = Math.round(Math.sin((t + 0.66) * 6.28318) * 127 + 128);
+      return `rgb(${r},${g},${b})`;
+    }
+    return `rgb(${color1[0]},${color1[1]},${color1[2]})`;
+  };
+
+  const pad2 = (v) => v.toString().padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: tz,
+  }).formatToParts(now);
+  const partVal = (type) => {
+    const p = parts.find((x) => x.type === type);
+    return p ? Number(p.value) : 0;
+  };
+  let hour = partVal("hour");
+  const minute = partVal("minute");
+  const second = partVal("second");
+  let ampm = "";
+  if (use12h) {
+    ampm = ""; // matrix should not show AM/PM label
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+  }
+
+  let timeStr = `${pad2(hour)}:${pad2(minute)}`;
+  if (showSeconds) {
+    timeStr = `${timeStr}:${pad2(second)}`;
+  }
+  // Milliseconds are not shown on the matrix
+
+  const shouldBlink = (second % 2) === 1;
+  if (shouldBlink) {
+    timeStr = timeStr.replace(/:/g, " ");
+  }
+
+  const textWidth = measurePixelText(timeStr);
+  const startX = Math.max(0, Math.floor((w - textWidth) / 2));
+  const startY = Math.max(0, Math.floor((h - 5) / 2));
+  const drawPixelTextColorized = (text, px, py) => {
+    let cursor = px;
+    const upper = text.toUpperCase();
+    for (let i = 0; i < upper.length; i++) {
+      const color = colorAt(cursor);
+      const wch = drawPixelChar(upper[i], cursor, py, color);
+      cursor += wch + 1;
+      if (cursor >= w) break;
+    }
+  };
+
+  drawPixelTextColorized(timeStr, startX, startY);
+
+  // intentionally no AM/PM on matrix preview
+}
+
+function startMatrixPreview() {
+  stopMatrixPreview();
+  matrixPreviewFrame = 0;
+  const loop = () => {
+    matrixPreviewFrame += 1;
+    renderMatrixPreviewOnce(readMatrixForm());
+    matrixPreviewHandle = requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+function initMatrixSection() {
+  const form = selectors.matrixForm();
+  const status = selectors.matrixStatus();
+  const refresh = selectors.matrixRefresh();
+  const testBtn = selectors.matrixTest();
+  const clearBtn = selectors.matrixClear();
+  const previewBtn = selectors.matrixPreview();
+  const previewModal = selectors.matrixPreviewModal();
+  const previewClose = selectors.matrixPreviewClose();
+  if (!form || !status) return;
+
+  // Start with the freshest clock prefs (banner overrides device defaults)
+  matrixClockPrefs = getClockPrefs();
+  lastClockSignature = clockSignature(matrixClockPrefs);
+
+  window.addEventListener("storage", (evt) => {
+    if (evt.key === "clockConfig") {
+      matrixClockPrefs = getClockPrefs();
+      const sig = clockSignature(matrixClockPrefs);
+      if (sig !== lastClockSignature) {
+        lastClockSignature = sig;
+        syncMatrixClockToDevice({ silent: true });
+      }
+    }
+  });
+
+  if (previewModal) {
+    previewModal.hidden = true; // ensure starts closed even if cached state lingered
+  }
+
+  loadMatrixConfig();
+
+  if (refresh) {
+    refresh.addEventListener("click", () => loadMatrixConfig());
+  }
+
+  if (testBtn) {
+    testBtn.addEventListener("click", async () => {
+      hideBanner(status);
+      try {
+        await fetchJSON("/api/matrix/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "test" }),
+        });
+        showBanner(status, "Test pattern running for a few seconds", "success");
+      } catch (error) {
+        showBanner(status, error.message || "Test action failed", "error");
+      }
+    matrixClockPrefs = {
+      clockUse12h: !!cfg.clockUse12h,
+      clockShowSeconds: cfg.clockShowSeconds !== false,
+      clockShowMillis: !!cfg.clockShowMillis,
+    };
+
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", async () => {
+      hideBanner(status);
+      try {
+        await fetchJSON("/api/matrix/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "clear" }),
+        });
+        showBanner(status, "Matrix cleared", "success");
+      } catch (error) {
+        showBanner(status, error.message || "Clear action failed", "error");
+      }
+    });
+  }
+
+  if (previewBtn && previewModal && previewClose) {
+    const openPreview = () => {
+      previewModal.hidden = false;
+      startMatrixPreview();
+    };
+    const closePreview = () => {
+      stopMatrixPreview();
+      previewModal.hidden = true;
+    };
+    previewBtn.addEventListener("click", openPreview);
+    previewClose.addEventListener("click", closePreview);
+    previewModal.addEventListener("click", (evt) => {
+      if (evt.target === previewModal) {
+        closePreview();
+      }
+    });
+    document.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape" && !previewModal.hidden) {
+        closePreview();
+      }
+    });
+    window.addEventListener("beforeunload", () => {
+      stopMatrixPreview();
+      if (previewModal) previewModal.hidden = true;
+    });
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    hideBanner(status);
+    const payload = readMatrixForm();
+    try {
+      await fetchJSON("/api/matrix/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      showBanner(status, "Matrix settings saved", "success");
+    } catch (error) {
+      showBanner(status, error.message || "Failed to save matrix settings", "error");
     }
   });
 }
