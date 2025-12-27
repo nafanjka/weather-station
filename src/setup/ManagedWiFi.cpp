@@ -1,5 +1,6 @@
 #include "ManagedWiFi.h"
 #include <Preferences.h>
+#include "../common/DeviceHelpers.h"
 
 namespace {
   Preferences wifiPrefs;
@@ -7,18 +8,6 @@ namespace {
   constexpr const char *KEY_SSID = "ssid";
   constexpr const char *KEY_PASS = "pass";
   constexpr const char *KEY_HOST = "host";
-
-  String makeApName(){
-    String mac = WiFi.macAddress();
-    mac.replace(":", "");
-    return String("ESPPortal-") + mac.substring(mac.length() - 6);
-  }
-
-  String makeHostName(){
-    String mac = WiFi.macAddress();
-    mac.replace(":", "");
-    return String("esp-weather-") + mac.substring(mac.length() - 6);
-  }
 }
 
 void ManagedWiFi::begin(){
@@ -26,10 +15,11 @@ void ManagedWiFi::begin(){
   WiFi.mode(WIFI_STA);
   loadCredentials();
   if(host.isEmpty()){
-    host = makeHostName();
+    host = DeviceHelpers::makeHostName("esp-weather");
+    // Додаємо суфікс з MAC, як у DeviceHelpers
   }
   WiFi.setHostname(host.c_str());
-  apName = makeApName();
+  apName = DeviceHelpers::makeApName("ESPPortal");
   if(hasCredentials()){
     beginConnection();
   } else {
@@ -221,7 +211,7 @@ void ManagedWiFi::beginConnection(){
   }
   WiFi.mode(apActive ? WIFI_AP_STA : WIFI_STA);
   if(host.isEmpty()){
-    host = makeHostName();
+    host = DeviceHelpers::makeHostName("esp-weather");
   }
   WiFi.setHostname(host.c_str());
   WiFi.begin(storedSSID.c_str(), storedPass.c_str());

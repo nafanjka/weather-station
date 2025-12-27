@@ -1,4 +1,6 @@
+
 #include "MqttService.h"
+#include "../common/DeviceHelpers.h"
 
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -60,7 +62,7 @@ bool MqttService::saveConfig(const MqttConfig &next) {
 }
 
 String MqttService::deviceId() const {
-  String mac = WiFi.macAddress();
+  String mac = DeviceHelpers::getMacAddress();
   mac.replace(":", "");
   mac.toLowerCase();
   return mac;

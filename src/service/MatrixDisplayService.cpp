@@ -1,3 +1,4 @@
+#include "../common/DeviceHelpers.h"
 #include "MatrixDisplayService.h"
 
 #include <math.h>
@@ -388,12 +389,12 @@ void MatrixDisplayService::performAction(const String &action) {
 
 String MatrixDisplayService::stateTopic() const {
   if (!mqttRef) return String();
-  return mqttRef->baseTopic() + "/matrix/state";
+  return DeviceHelpers::makeTopic(mqttRef->baseTopic(), "matrix/state");
 }
 
 String MatrixDisplayService::commandTopic() const {
   if (!mqttRef) return String();
-  return mqttRef->baseTopic() + "/matrix/cmd";
+  return DeviceHelpers::makeTopic(mqttRef->baseTopic(), "matrix/cmd");
 }
 
 void MatrixDisplayService::publishState() {

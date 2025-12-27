@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 #include <WiFi.h>
+#include "../common/DeviceHelpers.h"
 #include <esp32/spiram.h>
 
 #include "setup/MqttService.h"
@@ -159,7 +160,7 @@ void WeatherMqttPublisher::publishTelemetry() {
   net["apSSID"] = WiFi.softAPSSID();
   net["ip"] = WiFi.localIP().toString();
   net["apIP"] = WiFi.softAPIP().toString();
-  net["mac"] = WiFi.macAddress();
+  net["mac"] = DeviceHelpers::getMacAddress();
   net["bssid"] = WiFi.BSSIDstr();
   addFinite(net, "rssi", WiFi.RSSI());
 

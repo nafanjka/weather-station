@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <WiFiClient.h>
+#include "../common/DeviceHelpers.h"
 #include <PubSubClient.h>
 #include <Preferences.h>
 
