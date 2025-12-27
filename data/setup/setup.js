@@ -79,6 +79,8 @@ function initFwAutoUpdateSection() {
     boardSelect.addEventListener("change", saveConfig);
     checkBtn.addEventListener("click", checkForUpdate);
     updateBtn.addEventListener("click", doUpdate);
+    const saveBtn = document.getElementById("fw-save-config");
+    if (saveBtn) saveBtn.addEventListener("click", saveConfig);
   }
 }
 
@@ -1303,8 +1305,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const page = document.body.dataset.page;
   if (page === "wifi") {
     initWifiPage();
-    initFwAutoUpdateSection();
   } else if (page === "ota") {
     initOtaPage();
+    initFwAutoUpdateSection();
   }
 });

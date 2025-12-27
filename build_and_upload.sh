@@ -56,6 +56,16 @@ echo "[1/5] Gzipping UI assets..."
 python3 scripts/gzip_fs.py
 
 echo "[2/5] Building firmware..."
+
+# Always build both main boards for GitHub releases
+platformio run -e esp32dev
+platformio run -e esp32s3n16r8_nopsram
+
+# Copy firmware binaries to root for GitHub release assets
+cp .pio/build/esp32dev/firmware.bin firmware-esp32dev.bin 2>/dev/null || true
+cp .pio/build/esp32s3n16r8_nopsram/firmware.bin firmware-esp32s3n16r8_nopsram.bin 2>/dev/null || true
+
+# Also build/upload the selected board as usual
 platformio run -e "$PIO_ENV"
 
 
@@ -116,10 +126,13 @@ else
   SERVER_MSG=$(cat /tmp/ota_response.txt)
   if [ "$RESPONSE" = "200" ]; then
     echo "OTA firmware upload successful. Device will reboot."
-    echo "Server response: $SERVER_MSG"
   else
     echo "OTA firmware upload failed! Response code: $RESPONSE"
-    echo "Server response: $SERVER_MSG"
+  fi
+  echo "--- OTA server response (HTTP $RESPONSE) ---"
+  echo "$SERVER_MSG"
+  echo "------------------------------------------"
+  if [ "$RESPONSE" != "200" ]; then
     exit 1
   fi
   # Upload FS image only if changed
@@ -160,7 +173,3 @@ else
   fi
 fi
 
-echo "Cleaning up .gz files..."
-find data/service data/setup -name '*.gz' -delete
-
-echo "Done. All .gz files removed from workspace."

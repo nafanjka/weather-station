@@ -188,8 +188,13 @@ void registerSetupRoutes(AsyncWebServer &server, ManagedWiFi &wifiManager, std::
   server.on("/api/ota/upload", HTTP_POST,
             [onOtaSuccess](AsyncWebServerRequest *request) {
               bool success = Update.isFinished() && !Update.hasError();
-              const char *body = success ? "{\"status\":\"ok\"}" : "{\"error\":\"update_failed\"}";
+              String body;
               int code = success ? 200 : 500;
+              if (success) {
+                body = String("{\"status\":\"ok\",\"bytes\":" ) + String(Update.progress()) + "}";
+              } else {
+                body = String("{\"error\":\"update_failed\",\"detail\":\"") + String(Update.errorString()) + "\"}";
+              }
               AsyncWebServerResponse *response = request->beginResponse(code, "application/json", body);
               response->addHeader("Connection", "close");
               request->send(response);
