@@ -1,3 +1,4 @@
+
 #include "WeatherService.h"
 
 #include <math.h>
@@ -17,12 +18,14 @@ bool WeatherService::begin(TwoWire &wire){
 #endif
 
   shtAvailable = sht31.begin(SHT31_I2C_ADDR);
+
   if(shtAvailable){
     sht31.heater(false);
     Serial.println("SHT31 detected");
   } else {
     Serial.println("SHT31 not detected");
   }
+
 
   uint8_t bmpAddress = BMP5XX_ADDR_PRIMARY;
   bmpAvailable = bmp5.begin(bmpAddress, wireRef);
@@ -31,6 +34,7 @@ bool WeatherService::begin(TwoWire &wire){
     bmpAddress = BMP5XX_ADDR_SECONDARY;
     bmpAvailable = bmp5.begin(bmpAddress, wireRef);
   }
+
 
   if(bmpAvailable){
     bmp5.setTemperatureOversampling(BMP5XX_OVERSAMPLING_8X);

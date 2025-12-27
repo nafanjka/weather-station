@@ -1,3 +1,5 @@
+
+
 #include "SetupRoutes.h"
 
 #include <Arduino.h>
@@ -6,9 +8,11 @@
 #include <Update.h>
 #include <WiFi.h>
 
+
 #include "ManagedWiFi.h"
 #include "common/ResponseHelpers.h"
 #include "setup/MqttService.h"
+#include "setup/FwUpdateService.h"
 
 namespace {
 String modeToString(ManagedWiFi::Mode mode) {
@@ -24,7 +28,16 @@ String modeToString(ManagedWiFi::Mode mode) {
 }
 }
 
+FwUpdateService fwUpdateService;
+
 void registerSetupRoutes(AsyncWebServer &server, ManagedWiFi &wifiManager, std::function<void()> onOtaSuccess, MqttService *mqtt) {
+      // (logs endpoint removed)
+    // Healthcheck endpoint for OTA scripts
+    server.on("/api/hc", HTTP_GET, [](AsyncWebServerRequest *request) {
+      request->send(204);
+    });
+  fwUpdateService.load();
+  fwUpdateService.registerRoutes(server);
   server.on("/api/system/state", HTTP_GET, [&wifiManager](AsyncWebServerRequest *request) {
     sendJson(request, [&wifiManager](JsonVariant json) {
       JsonObject obj = json.as<JsonObject>();
@@ -229,13 +242,13 @@ void registerSetupRoutes(AsyncWebServer &server, ManagedWiFi &wifiManager, std::
                   LittleFS.end();
                 }
                 if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)) {
-                  Serial.print("FS OTA begin failed: ");
+                  Serial.println("FS OTA begin failed: ");
                   Update.printError(Serial);
                 }
               }
               if (len && !Update.hasError()) {
                 if (Update.write(data, len) != len) {
-                  Serial.print("FS OTA write failed: ");
+                  Serial.println("FS OTA write failed: ");
                   Update.printError(Serial);
                 }
               }
@@ -243,7 +256,7 @@ void registerSetupRoutes(AsyncWebServer &server, ManagedWiFi &wifiManager, std::
                 if (Update.end(true)) {
                   Serial.printf("FS OTA update success (%u bytes).\n", static_cast<unsigned>(index + len));
                 } else {
-                  Serial.print("FS OTA end failed: ");
+                  Serial.println("FS OTA end failed: ");
                   Update.printError(Serial);
                 }
               }

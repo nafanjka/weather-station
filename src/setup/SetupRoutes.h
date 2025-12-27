@@ -1,3 +1,11 @@
+#include <Arduino.h>
+// For use in main.cpp and other files
+extern void logln(const String &msg);
+extern void log(const String &msg);
+
+#include "FwUpdateService.h"
+
+extern FwUpdateService fwUpdateService;
 #pragma once
 
 #include <functional>

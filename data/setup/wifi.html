@@ -104,10 +104,39 @@
       </form>
     </section>
 
+
     <section>
       <h2>Firmware update</h2>
       <p>Upload new builds without wires via the OTA dashboard.</p>
       <a href="/setup/ota.html" class="button-link">Open OTA portal</a>
+    </section>
+
+    <section id="fw-auto-update-section">
+      <h2>Firmware auto-update</h2>
+      <form id="fw-auto-update-form">
+        <div class="form-grid">
+          <label>
+            GitHub repo (owner/repo)
+            <input type="text" id="fw-git-repo" placeholder="user/project" autocomplete="off" />
+          </label>
+          <label>
+            Board type
+            <select id="fw-board-type">
+              <option value="esp32dev">ESP32 DevKit (esp32dev)</option>
+              <option value="esp32wroom">ESP32 WROOM (esp32wroom)</option>
+              <option value="esp32wrover">ESP32 WROVER (esp32wrover)</option>
+              <option value="esp32s3n16r8_psram">ESP32-S3 n16r8 with PSRAM</option>
+              <option value="esp32s3n16r8_nopsram">ESP32-S3 n16r8 NO PSRAM</option>
+            </select>
+          </label>
+        </div>
+        <div class="status" id="fw-auto-update-status" hidden></div>
+        <div class="link-row">
+          <button type="button" id="fw-check-update">Check for update</button>
+          <button type="button" id="fw-do-update" disabled>Update now</button>
+        </div>
+        <p class="hint">Device will check for new releases in the specified repo once a day automatically. You can also check and update manually here.</p>
+      </form>
     </section>
 
     <section id="matrix-section">

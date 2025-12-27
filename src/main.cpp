@@ -61,6 +61,7 @@ void setup(){
   matrixService.attachMqtt(&mqttService);
   matrixService.begin(&weatherService, &outdoorService);
 
+  // Register all HTTP API routes, including firmware update
   registerServiceRoutes(server, weatherService, outdoorService, matrixService);
   registerSetupRoutes(server, wifiManager, [](){ scheduleRestart(); }, &mqttService);
   server.on("/", HTTP_GET, handleRoot);
@@ -73,6 +74,11 @@ void setup(){
   server.begin();
 }
 
+
+#include "setup/FwUpdateService.h"
+
+extern FwUpdateService fwUpdateService; // defined in SetupRoutes.cpp
+
 void loop(){
   wifiManager.loop();
   outdoorService.loop();
@@ -80,5 +86,17 @@ void loop(){
   mqttPublisher.loop();
   matrixService.loop();
   handlePendingRestart();
+
+  static unsigned long lastAutoCheck = 0;
+  unsigned long now = millis();
+  // Check for update every 24h (86400000 ms), but only if WiFi is connected
+  if (wifiManager.isConnected() && (now - lastAutoCheck > 86400000UL || lastAutoCheck == 0)) {
+    lastAutoCheck = now;
+    String newVersion, assetUrl, errorMsg;
+    if (fwUpdateService.checkForUpdate(newVersion, assetUrl, errorMsg)) {
+      // Found new version, trigger update
+      fwUpdateService.downloadAndUpdate(assetUrl, errorMsg);
+    }
+  }
   delay(10);
 }

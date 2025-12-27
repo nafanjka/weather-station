@@ -1,3 +1,87 @@
+// --- Firmware auto-update section ---
+function initFwAutoUpdateSection() {
+  const form = document.getElementById("fw-auto-update-form");
+  const repoInput = document.getElementById("fw-git-repo");
+  const boardSelect = document.getElementById("fw-board-type");
+  const status = document.getElementById("fw-auto-update-status");
+  const checkBtn = document.getElementById("fw-check-update");
+  const updateBtn = document.getElementById("fw-do-update");
+  let latestVersion = null;
+
+  async function loadConfig() {
+    try {
+      const cfg = await fetchJSON("/api/fwupdate/config");
+      if (cfg?.repo) repoInput.value = cfg.repo;
+      if (cfg?.board) boardSelect.value = cfg.board;
+      updateBtn.disabled = true;
+      status.hidden = true;
+    } catch (e) {
+      showBanner(status, "Failed to load update config", "error");
+    }
+  }
+
+  async function saveConfig() {
+    try {
+      await fetchJSON("/api/fwupdate/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo: repoInput.value.trim(), board: boardSelect.value })
+      });
+      status.hidden = true;
+    } catch (e) {
+      showBanner(status, "Failed to save config", "error");
+    }
+  }
+
+  async function checkForUpdate() {
+    updateBtn.disabled = true;
+    showBanner(status, "Checking for update...", "info");
+    try {
+      await saveConfig();
+      const res = await fetchJSON("/api/fwupdate/check");
+      if (res?.updateAvailable) {
+        showBanner(status, `New version available: ${res.version}`, "success");
+        updateBtn.disabled = false;
+        latestVersion = res.version;
+      } else {
+        showBanner(status, "No new version found.", "info");
+        updateBtn.disabled = true;
+      }
+    } catch (e) {
+      showBanner(status, e.message || "Update check failed", "error");
+      updateBtn.disabled = true;
+    }
+  }
+
+  async function doUpdate() {
+    if (!latestVersion) return;
+    updateBtn.disabled = true;
+    showBanner(status, "Downloading and updating...", "info");
+    try {
+      const res = await fetchJSON("/api/fwupdate/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version: latestVersion })
+      });
+      if (res?.ok) {
+        showBanner(status, "Update started. Device will reboot if successful.", "success");
+      } else {
+        showBanner(status, res?.error || "Update failed", "error");
+      }
+    } catch (e) {
+      showBanner(status, e.message || "Update failed", "error");
+    }
+  }
+
+  if (form && repoInput && boardSelect && status && checkBtn && updateBtn) {
+    loadConfig();
+    repoInput.addEventListener("change", saveConfig);
+    boardSelect.addEventListener("change", saveConfig);
+    checkBtn.addEventListener("click", checkForUpdate);
+    updateBtn.addEventListener("click", doUpdate);
+  }
+}
+
 const selectors = {
   wifiSubtitle: () => document.getElementById("wifi-subtitle"),
   wifiStatus: () => document.getElementById("wifi-status"),
@@ -1219,6 +1303,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const page = document.body.dataset.page;
   if (page === "wifi") {
     initWifiPage();
+    initFwAutoUpdateSection();
   } else if (page === "ota") {
     initOtaPage();
   }
