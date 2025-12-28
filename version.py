@@ -10,19 +10,23 @@ def get_version():
     except Exception:
         tag = "0.0"
     # Remove leading 'v' or 'V' and any trailing .0 for cosmetic versioning
-    tag = tag.lstrip('vV')
-    if tag.endswith('.0'):
-        tag = tag[:-2]
+    tag_clean = tag.lstrip('vV')
+    if tag_clean.endswith('.0'):
+        tag_clean = tag_clean[:-2]
+    # Check if HEAD is exactly at the tag
     try:
-        # Get commit count
-        build = subprocess.check_output(["git", "rev-list", "--count", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+        exact_tag = subprocess.check_output(["git", "describe", "--tags", "--exact-match"], stderr=subprocess.DEVNULL).decode().strip()
     except Exception:
-        build = "0"
-    if not tag:
-        tag = "0.0"
-    if not build:
-        build = "0"
-    version = f'ver_{tag}_build{build}'
+        exact_tag = None
+    if exact_tag == tag:
+        version = tag
+    else:
+        # Get commit count since tag
+        try:
+            build = subprocess.check_output(["git", "rev-list", "--count", f"{tag}..HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+        except Exception:
+            build = "0"
+        version = f"{tag}_build{build}"
     return version
 
 fw_version = get_version()

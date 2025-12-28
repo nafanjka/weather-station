@@ -41,10 +41,23 @@ function initFwAutoUpdateSection() {
     try {
       await saveConfig();
       const res = await fetchJSON("/api/fwupdate/check");
-      if (res?.updateAvailable) {
-        showBanner(status, `New version available: ${res.version}`, "success");
-        updateBtn.disabled = false;
-        latestVersion = res.version;
+      // Get installed version from /api/version
+      const localVerResp = await fetch("/api/version");
+      const localVerData = await localVerResp.json();
+      const installedVersion = localVerData.version;
+      if (res?.version) {
+        const cmp = compareVersions(res.version, installedVersion);
+        if (cmp > 0) {
+          showBanner(status, `New version available: ${res.version}`, "success");
+          updateBtn.disabled = false;
+          latestVersion = res.version;
+        } else if (cmp === 0) {
+          showBanner(status, "No new version found. Installed version is up to date.", "info");
+          updateBtn.disabled = true;
+        } else {
+          showBanner(status, `Installed version (${installedVersion}) is newer than release (${res.version}).`, "info");
+          updateBtn.disabled = true;
+        }
       } else {
         showBanner(status, "No new version found.", "info");
         updateBtn.disabled = true;
@@ -1340,6 +1353,27 @@ function initOtaPage() {
     formData.append("firmware", file);
     xhr.send(formData);
   });
+}
+
+// --- Version comparison utility ---
+function parseVersion(ver) {
+  // Accepts 'ver_1.2.3' or 'ver_1.2' or '1.2.3', returns [1,2,3]
+  if (!ver) return [];
+  let v = ver.replace(/^ver[_-]?/i, "");
+  return v.split("_")[0].split(".").map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+}
+
+function compareVersions(a, b) {
+  // Returns 1 if a > b, -1 if a < b, 0 if equal
+  const va = parseVersion(a);
+  const vb = parseVersion(b);
+  for (let i = 0; i < Math.max(va.length, vb.length); i++) {
+    const na = va[i] || 0;
+    const nb = vb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
