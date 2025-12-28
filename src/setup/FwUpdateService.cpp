@@ -76,29 +76,30 @@ void FwUpdateService::registerRoutes(AsyncWebServer& server) {
     serializeJson(doc, out);
     req->send(200, "application/json", out);
   });
-  server.on("/api/fwupdate/update", HTTP_POST, [this](AsyncWebServerRequest* req) {
-    if (req->hasParam("plain", true)) {
-      DynamicJsonDocument doc(128);
-      DeserializationError err = deserializeJson(doc, req->getParam("plain", true)->value());
-      if (err) {
-        req->send(400, "application/json", "{\"error\":\"bad json\"}");
-        return;
-      }
-      String version = doc["version"] | "";
-      String newVersion, assetUrl, errorMsg;
-      if (checkForUpdate(newVersion, assetUrl, errorMsg) && newVersion == version) {
-        if (downloadAndUpdate(assetUrl, errorMsg)) {
-          req->send(200, "application/json", "{\"ok\":true}");
-        } else {
-          req->send(500, "application/json", String("{\"error\":\"") + errorMsg + "\"}");
-        }
-      } else {
-        req->send(400, "application/json", String("{\"error\":\"") + errorMsg + "\"}");
-      }
+  server.addHandler(new AsyncCallbackJsonWebHandler("/api/fwupdate/update", [this](AsyncWebServerRequest *req, JsonVariant &json) {
+    JsonObject obj = json.as<JsonObject>();
+    String version = obj["version"] | "";
+    String newVersion, assetUrl, errorMsg;
+    if (checkForUpdate(newVersion, assetUrl, errorMsg) && newVersion == version) {
+      // Respond immediately so the UI does not spin forever
+      req->send(200, "application/json", "{\"ok\":true}");
+      // Run the update in a background task (so HTTP server is not blocked)
+      struct FwUpdateTaskArgs {
+        FwUpdateService* self;
+        String assetUrl;
+      };
+      auto* args = new FwUpdateTaskArgs{this, assetUrl};
+      xTaskCreatePinnedToCore([](void* param) {
+        auto* args = static_cast<FwUpdateTaskArgs*>(param);
+        String errorMsg;
+        args->self->downloadAndUpdate(args->assetUrl, errorMsg);
+        delete args;
+        vTaskDelete(NULL);
+      }, "fw_update", 8192, args, 1, nullptr, 1);
     } else {
-      req->send(400, "application/json", "{\"error\":\"no body\"}");
+      req->send(400, "application/json", String("{\"error\":\"") + errorMsg + "\"}");
     }
-  });
+  }));
 }
 
 // --- GitHub API logic ---
@@ -145,9 +146,22 @@ bool FwUpdateService::checkForUpdate(String& newVersion, String& assetUrl, Strin
 }
 
 bool FwUpdateService::downloadAndUpdate(const String& assetUrl, String& errorMsg) {
+  String url = assetUrl;
+  int redirects = 0;
+  const int maxRedirects = 3;
   HTTPClient http;
-  http.begin(assetUrl);
-  int code = http.GET();
+  int code = -1;
+  while (redirects < maxRedirects) {
+    http.begin(url);
+    code = http.GET();
+    if (code == 302 || code == 301) {
+      url = http.getLocation();
+      http.end();
+      redirects++;
+      continue;
+    }
+    break;
+  }
   if (code != 200) {
     errorMsg = "Download error: " + String(code);
     http.end();

@@ -5,7 +5,7 @@ set -e
 # Always cleanup .gz files on exit (success or error)
 cleanup() {
   echo "Cleaning up .gz files..."
-  find data/service data/setup -name '*.gz' -delete
+  find data -name '*.gz' -delete
   echo "Done. All .gz files removed from workspace."
 }
 trap cleanup EXIT
@@ -48,9 +48,21 @@ select_upload_method() {
   done
 }
 
-# Main script
+
+# Ask user if they want to only build or build and flash
+echo "What do you want to do?"
+select action in "Build only (no upload)" "Build and flash/upload"; do
+  case $REPLY in
+    1) ONLY_BUILD=1; break;;
+    2) ONLY_BUILD=0; break;;
+    *) echo "Invalid option";;
+  esac
+done
+
 select_board
-select_upload_method
+if [ "$ONLY_BUILD" = "0" ]; then
+  select_upload_method
+fi
 
 echo "[1/5] Gzipping UI assets..."
 python3 scripts/gzip_fs.py
@@ -65,7 +77,8 @@ platformio run -e esp32s3n16r8_nopsram
 cp .pio/build/esp32dev/firmware.bin firmware-esp32dev.bin 2>/dev/null || true
 cp .pio/build/esp32s3n16r8_nopsram/firmware.bin firmware-esp32s3n16r8_nopsram.bin 2>/dev/null || true
 
-# Also build/upload the selected board as usual
+
+# Also build the selected board as usual
 platformio run -e "$PIO_ENV"
 
 
@@ -105,71 +118,74 @@ if [ -f "$FS_PATH" ]; then
   echo "$CUR_FS_BIN_HASH" > "$FS_BIN_HASH_FILE"
 fi
 
-if [[ $UPLOAD_METHOD == usb ]]; then
-  detect_ports
-  read -p "Enter serial port (e.g. /dev/tty.usbmodem101): " SERIAL_PORT
-  echo "[4/5] Uploading firmware to $SERIAL_PORT..."
-  platformio run -e "$PIO_ENV" --target upload --upload-port "$SERIAL_PORT"
-  echo "[5/5] Uploading filesystem to $SERIAL_PORT..."
-  platformio run -e "$PIO_ENV" --target uploadfs --upload-port "$SERIAL_PORT"
-  # Log monitoring removed
 
-else
-  read -p "Enter device IP address: " OTA_IP
-  FIRMWARE_PATH=.pio/build/$PIO_ENV/firmware.bin
-  if [ ! -f "$FIRMWARE_PATH" ]; then
-    echo "Firmware binary not found at $FIRMWARE_PATH. Build failed or wrong environment."
-    exit 1
-  fi
-  echo "[4/5] Uploading OTA firmware to $OTA_IP via /api/ota/upload..."
-  RESPONSE=$(curl -s -w "%{http_code}" -o /tmp/ota_response.txt -F "firmware=@$FIRMWARE_PATH" http://$OTA_IP/api/ota/upload)
-  SERVER_MSG=$(cat /tmp/ota_response.txt)
-  if [ "$RESPONSE" = "200" ]; then
-    echo "OTA firmware upload successful. Device will reboot."
-  else
-    echo "OTA firmware upload failed! Response code: $RESPONSE"
-  fi
-  echo "--- OTA server response (HTTP $RESPONSE) ---"
-  echo "$SERVER_MSG"
-  echo "------------------------------------------"
-  if [ "$RESPONSE" != "200" ]; then
-    exit 1
-  fi
-  # Upload FS image only if changed
-  FS_PATH=.pio/build/$PIO_ENV/littlefs.bin
-  if [ $FS_CHANGED -eq 1 ] && [ -f "$FS_PATH" ]; then
-    echo "[5/5] Waiting for device to reboot and become available (/api/hc)..."
-    HC_OK=0
-    for i in {1..30}; do
-      sleep 2
-      STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://$OTA_IP/api/hc)
-      echo -n "($STATUS)"
-      if [ "$STATUS" = "204" ]; then
-        echo " /api/hc is available (status $STATUS)."
-        HC_OK=1
-        break
-      fi
-      echo -n "."
-    done
-    echo
-    if [ $HC_OK -eq 0 ]; then
-      echo "[ERROR] Timeout waiting for /api/hc, skipping OTA FS upload!"
-      exit 1
-    fi
-    echo "[5/5] Uploading OTA filesystem to $OTA_IP via /api/fs/upload..."
-    RESPONSE=$(curl -s -w "%{http_code}" -o /tmp/fs_response.txt -F "firmware=@$FS_PATH" http://$OTA_IP/api/fs/upload)
-    SERVER_MSG=$(cat /tmp/fs_response.txt)
-    if [ "$RESPONSE" = "200" ]; then
-      echo "OTA filesystem upload successful."
-      echo "Server response: $SERVER_MSG"
-    else
-      echo "OTA filesystem upload failed! Response code: $RESPONSE"
-      echo "Server response: $SERVER_MSG"
-      exit 1
-    fi
+# Only upload if user selected build and flash/upload
+if [ "$ONLY_BUILD" = "0" ]; then
+  if [[ $UPLOAD_METHOD == usb ]]; then
+    detect_ports
+    read -p "Enter serial port (e.g. /dev/tty.usbmodem101): " SERIAL_PORT
+    echo "[4/5] Uploading firmware to $SERIAL_PORT..."
+    platformio run -e "$PIO_ENV" --target upload --upload-port "$SERIAL_PORT"
+    echo "[5/5] Uploading filesystem to $SERIAL_PORT..."
+    platformio run -e "$PIO_ENV" --target uploadfs --upload-port "$SERIAL_PORT"
     # Log monitoring removed
   else
-    echo "[5/5] Filesystem not changed, skipping OTA FS upload."
+    read -p "Enter device IP address: " OTA_IP
+    FIRMWARE_PATH=.pio/build/$PIO_ENV/firmware.bin
+    if [ ! -f "$FIRMWARE_PATH" ]; then
+      echo "Firmware binary not found at $FIRMWARE_PATH. Build failed or wrong environment."
+      exit 1
+    fi
+    echo "[4/5] Uploading OTA firmware to $OTA_IP via /api/ota/upload..."
+    RESPONSE=$(curl -s -w "%{http_code}" -o /tmp/ota_response.txt -F "firmware=@$FIRMWARE_PATH" http://$OTA_IP/api/ota/upload)
+    SERVER_MSG=$(cat /tmp/ota_response.txt)
+    if [ "$RESPONSE" = "200" ]; then
+      echo "OTA firmware upload successful. Device will reboot."
+    else
+      echo "OTA firmware upload failed! Response code: $RESPONSE"
+    fi
+    echo "--- OTA server response (HTTP $RESPONSE) ---"
+    echo "$SERVER_MSG"
+    echo "------------------------------------------"
+    if [ "$RESPONSE" != "200" ]; then
+      exit 1
+    fi
+    # Upload FS image only if changed
+    FS_PATH=.pio/build/$PIO_ENV/littlefs.bin
+    if [ $FS_CHANGED -eq 1 ] && [ -f "$FS_PATH" ]; then
+      echo "[5/5] Waiting for device to reboot and become available (/api/hc)..."
+      HC_OK=0
+      for i in {1..30}; do
+        sleep 2
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://$OTA_IP/api/hc)
+        echo -n "($STATUS)"
+        if [ "$STATUS" = "204" ]; then
+          echo " /api/hc is available (status $STATUS)."
+          HC_OK=1
+          break
+        fi
+        echo -n "."
+      done
+      echo
+      if [ $HC_OK -eq 0 ]; then
+        echo "[ERROR] Timeout waiting for /api/hc, skipping OTA FS upload!"
+        exit 1
+      fi
+      echo "[5/5] Uploading OTA filesystem to $OTA_IP via /api/fs/upload..."
+      RESPONSE=$(curl -s -w "%{http_code}" -o /tmp/fs_response.txt -F "firmware=@$FS_PATH" http://$OTA_IP/api/fs/upload)
+      SERVER_MSG=$(cat /tmp/fs_response.txt)
+      if [ "$RESPONSE" = "200" ]; then
+        echo "OTA filesystem upload successful."
+        echo "Server response: $SERVER_MSG"
+      else
+        echo "OTA filesystem upload failed! Response code: $RESPONSE"
+        echo "Server response: $SERVER_MSG"
+        exit 1
+      fi
+      # Log monitoring removed
+    else
+      echo "[5/5] Filesystem not changed, skipping OTA FS upload."
+    fi
   fi
 fi
 

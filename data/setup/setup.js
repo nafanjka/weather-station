@@ -7,6 +7,8 @@ function initFwAutoUpdateSection() {
   const checkBtn = document.getElementById("fw-check-update");
   const updateBtn = document.getElementById("fw-do-update");
   let latestVersion = null;
+  const progress = document.getElementById("fw-auto-update-progress");
+  const warning = document.getElementById("fw-auto-update-warning");
 
   async function loadConfig() {
     try {
@@ -57,19 +59,58 @@ function initFwAutoUpdateSection() {
     if (!latestVersion) return;
     updateBtn.disabled = true;
     showBanner(status, "Downloading and updating...", "info");
+    if (progress) {
+      progress.hidden = false;
+      progress.value = 10;
+    }
+    if (warning) warning.style.display = "block";
+    let updateCompleted = false;
     try {
+      // Start update request (no real progress, but we can show indeterminate/progress)
       const res = await fetchJSON("/api/fwupdate/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ version: latestVersion })
       });
       if (res?.ok) {
-        showBanner(status, "Update started. Device will reboot if successful.", "success");
+        if (progress) progress.value = 100;
+        showBanner(status, "Update started. Device will reboot. Please wait...", "success");
+        updateCompleted = true;
+        // Poll device until it disconnects (reboot)
+        setTimeout(async () => {
+          let tries = 0;
+          while (tries < 30) {
+            try {
+              await fetch("/api/hc", { cache: "no-store" });
+              // Still up, wait and try again
+              if (progress) progress.value = 100 - Math.min(tries * 3, 90);
+              await new Promise(r => setTimeout(r, 1000));
+            } catch {
+              // Device is rebooting/disconnected
+              break;
+            }
+            tries++;
+          }
+          if (progress) progress.value = 100;
+          showBanner(status, "Device is rebooting. Please reconnect in 10-20 seconds.", "info");
+          if (warning) warning.style.display = "none";
+        }, 1000);
       } else {
         showBanner(status, res?.error || "Update failed", "error");
+        if (progress) progress.value = 0;
+        if (warning) warning.style.display = "none";
       }
     } catch (e) {
       showBanner(status, e.message || "Update failed", "error");
+      if (progress) progress.value = 0;
+      if (warning) warning.style.display = "none";
+    }
+    // Optionally, after a timeout, hide progress/warning
+    if (!updateCompleted) {
+      setTimeout(() => {
+        if (progress) progress.hidden = true;
+        if (warning) warning.style.display = "none";
+      }, 8000);
     }
   }
 
@@ -1302,6 +1343,15 @@ function initOtaPage() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    // Show firmware version on all pages with #fw-version
+    const fwVerEl = document.getElementById("fw-version");
+    if (fwVerEl) {
+      fetch("/api/version").then(r => r.json()).then(data => {
+        fwVerEl.textContent = data.version || "unknown";
+      }).catch(() => {
+        fwVerEl.textContent = "unknown";
+      });
+    }
   const page = document.body.dataset.page;
   if (page === "wifi") {
     initWifiPage();

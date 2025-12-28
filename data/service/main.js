@@ -2035,6 +2035,15 @@ function initServicePage() {
 
 document.addEventListener("DOMContentLoaded", () => {
   if (document.body.dataset.page === "service") {
+    // Show firmware version on all pages with #fw-version
+    const fwVerEl = document.getElementById("fw-version");
+    if (fwVerEl) {
+      fetch("/api/version").then(r => r.json()).then(data => {
+        fwVerEl.textContent = data.version || "unknown";
+      }).catch(() => {
+        fwVerEl.textContent = "unknown";
+      });
+    }
     initServicePage();
   }
 });

@@ -12,7 +12,9 @@
 #include "setup/MqttService.h"
 #include "service/OutdoorService.h"
 #include "service/WeatherMqttPublisher.h"
+
 #include "service/MatrixDisplayService.h"
+#include "assets/firmware_version.h"
 
 ManagedWiFi wifiManager;
 AsyncWebServer server(80);
@@ -46,6 +48,9 @@ void handleRoot(AsyncWebServerRequest *request){
 }
 
 void setup(){
+    server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request){
+      request->send(200, "application/json", String("{\"version\":\"") + String(FW_VERSION) + "\"}");
+    });
   Serial.begin(115200);
   delay(200);
 

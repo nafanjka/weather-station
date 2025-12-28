@@ -12,6 +12,7 @@
     <header>
       <h1>OTA & Firmware Update</h1>
       <p>Update your device firmware manually or via GitHub releases. Use either method below.</p>
+      <div class="fw-version-banner">Installed version: <span id="fw-version">...</span></div>
     </header>
 
     <section>
@@ -53,6 +54,10 @@
           </label>
         </div>
         <div class="status" id="fw-auto-update-status" hidden></div>
+        <div class="fw-update-progress-row">
+          <progress id="fw-auto-update-progress" value="0" max="100" hidden></progress>
+          <div id="fw-auto-update-warning" class="hint" style="color:#fbbf24;display:none;">Do not power off or refresh the page during update! The device will reboot automatically.</div>
+        </div>
         <div class="link-row">
           <button type="button" id="fw-save-config">Save</button>
           <button type="button" id="fw-check-update">Check for update</button>
